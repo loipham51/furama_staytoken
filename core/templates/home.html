@@ -1,0 +1,275 @@
+﻿{% extends "base.html" %}
+{% block title %}Furama StayToken{% endblock %}
+{% block content %}
+<div x-data="homeView()" x-init="init()" class="mx-auto flex max-w-md flex-col gap-5 px-4 pb-16 pt-6">
+  <!-- Claim CTA -->
+  <section class="rounded-3xl border border-[#dfeee2] bg-white p-6 shadow-sm">
+    <div class="flex items-start gap-3">
+      <div class="grid h-12 w-12 place-items-center rounded-full bg-[#d9f2dd] text-[#166534]">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" class="h-6 w-6" fill="currentColor" aria-hidden="true">
+          <path d="M3 3h6v6H3V3zm2 2v2h2V5H5zm10 4h6V3h-6v6zm2-4h2v2h-2V5zM3 21h6v-6H3v6zm2-4h2v2H5v-2zm10-4v2h2v2h-2v2h-2v2h6v-6h-2v-2h2v-2h-4zm-4-8h2v6h-2zm0 8h2v6h-2z" />
+        </svg>
+      </div>
+      <div class="min-w-0">
+        <p class="text-xs font-semibold uppercase tracking-wide text-[#166534]/80">Furama Resort guests</p>
+        <h1 class="mt-1 text-lg font-semibold text-[#14532d]">Digital voucher check-in</h1>
+        <p class="mt-2 text-sm text-[#14532d]/80">Scan the QR from our concierge to mint your on-chain voucher and keep it ready inside your custodial wallet (built on ERC-1155).</p>
+      </div>
+    </div>
+    <div class="mt-4 space-y-2 text-xs text-[#14532d]/80">
+      <div class="flex items-center gap-2">
+        <span class="grid h-5 w-5 place-items-center rounded-full bg-[#d9f2dd] text-[0.65rem] font-semibold text-[#14532d]">1</span>
+        <span>Scan the claim QR.</span>
+      </div>
+      <div class="flex items-center gap-2">
+        <span class="grid h-5 w-5 place-items-center rounded-full bg-[#d9f2dd] text-[0.65rem] font-semibold text-[#14532d]">2</span>
+        <span>Verify the OTP so StayToken can create the wallet for you.</span>
+      </div>
+      <div class="flex items-center gap-2">
+        <span class="grid h-5 w-5 place-items-center rounded-full bg-[#d9f2dd] text-[0.65rem] font-semibold text-[#14532d]">3</span>
+        <span>Present the voucher QR at POS, restaurants, or spa.</span>
+      </div>
+    </div>
+    <template x-if="demoMode">
+      <p class="mt-4 rounded-2xl bg-[#f1faf3] px-3 py-2 text-xs text-[#14532d]/80">Demo mode: paste a claim code or QR link after pressing the button.</p>
+    </template>
+    <button type="button" @click="openScanner()" class="mt-4 w-full rounded-full bg-[#15803d] py-3 text-sm font-semibold text-white shadow-sm active:scale-[0.99]">Start scanning</button>
+  </section>
+
+  <!-- Wallet summary -->
+  <section class="rounded-3xl border border-[#dfeee2] bg-white p-6 shadow-sm">
+    <div class="flex items-center justify-between">
+      <div>
+        <p class="text-xs uppercase tracking-wide text-[#166534]/70">StayToken wallet</p>
+        <p class="mt-1 font-mono text-sm text-[#14532d]" x-text="walletAddress ? shortAddress(walletAddress) : 'Not created yet'"></p>
+      </div>
+      <template x-if="walletAddress">
+        <button type="button" class="text-xs text-[#15803d] underline" @click="copy(walletAddress)">Copy</button>
+      </template>
+    </div>
+    <div class="mt-4 grid grid-cols-2 gap-3 rounded-2xl bg-[#f1faf3] p-4 text-center">
+      <div>
+        <p class="text-xs uppercase tracking-wide text-[#15803d]/70">Voucher count</p>
+        <p class="mt-1 text-2xl font-semibold text-[#14532d]" x-text="voucherCount"></p>
+      </div>
+      <div>
+        <p class="text-xs uppercase tracking-wide text-[#15803d]/70">Total value</p>
+        <div class="mt-1 flex items-center justify-center gap-2">
+          <p class="text-xl font-semibold text-[#b09114]" x-text="valueHidden ? '*****' : voucherValue"></p>
+          <button type="button" class="text-xs text-[#166534]/70 underline" @click="toggleValue()" x-text="valueHidden ? 'Show' : 'Hide'"></button>
+        </div>
+      </div>
+    </div>
+    <p class="mt-3 text-xs text-slate-500" x-text="walletStatus"></p>
+    <template x-if="loggedIn">
+      <a href="/me" class="mt-3 inline-flex items-center gap-2 text-xs font-semibold text-[#166534] underline">View account & vouchers</a>
+    </template>
+  </section>
+
+  <!-- Voucher list -->
+  <section class="rounded-3xl border border-[#dfeee2] bg-white p-6 shadow-sm">
+    <div class="flex items-center gap-2 text-[#166534]">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" class="h-4 w-4" fill="currentColor" aria-hidden="true">
+        <path d="M20 6h-2.18c.11-.31.18-.65.18-1 0-1.66-1.34-3-3-3-1.38 0-2.53.93-2.87 2.2L12 5.24l-.13-.04C11.53 3.93 10.38 3 9 3 7.34 3 6 4.34 6 6c0 .35.07.69.18 1H4c-1.1 0-2 .9-2 2v2c0 .55.45 1 1 1h1v9c0 .55.45 1 1 1h14c.55 0 1-.45 1-1v-9h1c.55 0 1-.45 1-1V8c0-1.1-.9-2-2-2zM9 5c.55 0 1 .45 1 1s-.45 1-1 1S8 6.55 8 6s.45-1 1-1zm-3 6h5v9H6v-9zm11 9h-5v-9h5v9zm2-11H4V8h16v1zm-5-2c-.55 0-1-.45-1-1s.45-1 1-1 1 .45 1 1-.45 1-1 1z" />
+      </svg>
+      <h2 class="text-sm font-semibold">Recent vouchers</h2>
+    </div>
+    <template x-if="voucherItems.length === 0">
+      <p class="mt-4 text-sm text-[#166534]/75">No vouchers yet. Scan the QR to unlock resort rewards.</p>
+    </template>
+    <div class="mt-4 space-y-3" x-show="voucherItems.length > 0">
+      <template x-for="item in voucherItems" :key="item.slug">
+        <article class="rounded-2xl border border-[#e7f3ea] bg-[#f8fdf9] p-4">
+          <div class="flex items-start justify-between gap-3">
+            <div>
+              <p class="text-sm font-semibold text-[#14532d]" x-text="item.name"></p>
+              <p class="text-xs text-[#166534]/80" x-text="item.subtitle"></p>
+            </div>
+            <p class="text-sm font-semibold text-[#14532d]" x-text="item.displayValue"></p>
+          </div>
+          <div class="mt-3 flex items-center justify-between text-xs">
+            <span class="inline-flex items-center gap-2 rounded-full px-3 py-1" :class="item.active ? 'bg-[#d9f2dd] text-[#14532d]' : 'bg-slate-200 text-slate-700'">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" class="h-3 w-3" fill="currentColor" aria-hidden="true">
+                <path d="M9 16.17 4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" />
+              </svg>
+              <span x-text="item.active ? 'Active' : 'Used'"></span>
+            </span>
+            <span class="text-[#166534]/70" x-text="item.expiry"></span>
+          </div>
+        </article>
+      </template>
+    </div>
+  </section>
+
+  <!-- Help -->
+  <section class="rounded-3xl border border-[#dfeee2] bg-white p-6 shadow-sm text-xs text-[#14532d]/80">
+    <p class="font-semibold text-[#14532d]">Need assistance?</p>
+    <p class="mt-2">Show this screen to Furama staff. They can resend the QR or help you move the voucher to a personal wallet if you prefer self-custody.</p>
+  </section>
+
+  <!-- Scanner modal -->
+  <div x-show="scanner.open" x-cloak class="fixed inset-0 z-50 flex items-center justify-center bg-[#14532d]/70 px-4">
+    <div class="w-full max-w-sm space-y-4 rounded-3xl bg-white p-6 shadow-2xl">
+      <div class="flex items-center justify-between">
+        <div>
+          <h3 class="text-base font-semibold text-[#14532d]">Scan claim QR</h3>
+          <p class="text-xs text-[#166534]/80">Align the QR inside the frame. The camera captures automatically.</p>
+        </div>
+        <button type="button" class="rounded-full border px-3 py-1 text-xs text-[#166534]/80" @click="closeScanner()">Close</button>
+      </div>
+      <div class="rounded-2xl border border-[#dfeee2] bg-[#f1faf3] p-2">
+        <div id="claim-qr-reader" class="h-64 w-full rounded-xl bg-black/10"></div>
+      </div>
+      <p x-show="scanner.error" class="text-sm text-rose-600" x-text="scanner.error"></p>
+    </div>
+  </div>
+</div>
+
+<script>
+function homeView(){
+  const formatCurrency = (value) => new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(value);
+  return {
+    demoMode: {{ demo_mode|yesno:"true,false" }},
+    walletAddress: null,
+    voucherCount: '-',
+    voucherValue: '-',
+    walletStatus: 'Checking wallet…',
+    loggedIn: false,
+    voucherItems: [],
+    valueHidden: false,
+    scanner: { open: false, error: '' },
+
+    init(){
+      fetch('/me?format=json', { headers: { 'Accept': 'application/json' } })
+        .then(r => r.ok ? r.json() : null)
+        .then(data => {
+          if(!data){
+            this.walletStatus = 'Please sign in to continue.';
+            this.loggedIn = false;
+            return;
+          }
+          this.loggedIn = true;
+          this.walletAddress = data.wallet_address || null;
+          this.voucherCount = (data.voucher_total ?? '0') + '';
+          this.walletStatus = this.walletAddress ? 'Custodial wallet ready.' : 'Wallet will be created on your first claim.';
+
+          const vouchers = Array.isArray(data.vouchers) ? data.vouchers : [];
+          const mapped = vouchers.map((item) => {
+            const balance = Number(item.balance || 0);
+            const rawValue = Number(item.value_vnd ?? item.value ?? 0) || 0;
+            const subtitle = item.description || 'StayToken reward';
+            const expiry = item.expires_at ? `Expires: ${item.expires_at}` : '';
+            const displayValue = rawValue > 0 ? formatCurrency(rawValue) : `${balance} voucher${balance === 1 ? '' : 's'}`;
+            return {
+              slug: item.slug,
+              name: item.name || item.slug,
+              subtitle,
+              balance,
+              rawValue,
+              displayValue,
+              active: balance > 0,
+              expiry,
+            };
+          });
+          this.voucherItems = mapped.slice(0, 4);
+
+          const totalValue = mapped.reduce((acc, it) => acc + it.rawValue, 0);
+          if(totalValue > 0){
+            this.voucherValue = formatCurrency(totalValue);
+          } else if (Number(this.voucherCount) > 0) {
+            const count = Number(this.voucherCount);
+            this.voucherValue = `${count} voucher${count === 1 ? '' : 's'}`;
+          } else {
+            this.voucherValue = '—';
+          }
+        })
+        .catch(() => {
+          this.walletStatus = 'Unable to load wallet info. Please sign in again.';
+          this.loggedIn = false;
+        });
+    },
+
+    shortAddress(addr){
+      if(!addr) return '';
+      return `${addr.slice(0, 10)}...${addr.slice(-6)}`;
+    },
+
+    toggleValue(){
+      this.valueHidden = !this.valueHidden;
+    },
+
+    async copy(text){
+      try {
+        await navigator.clipboard.writeText(text);
+      } catch (_) {}
+    },
+
+    async openScanner(){
+      if(this.demoMode){
+        const input = window.prompt('Demo mode: paste a claim code or QR link.');
+        if(!input){
+          return;
+        }
+        const target = this.normalizeClaim(input);
+        if(!target){
+          alert('Unrecognised claim code. Please enter a valid code or URL.');
+          return;
+        }
+        window.location.href = target;
+        return;
+      }
+      if(!window.StayTokenQR){
+        alert('QR scanner is not available in this browser.');
+        return;
+      }
+      this.scanner.error = '';
+      this.scanner.open = true;
+      await this.$nextTick(async () => {
+        try {
+          await window.StayTokenQR.start('claim-qr-reader', (decoded) => this.handleScan(decoded), (err) => {
+            console.debug('QR decode error', err);
+          });
+        } catch (err) {
+          this.scanner.error = err && err.message ? err.message : 'Cannot access the camera. Please ask our staff for assistance.';
+        }
+      });
+    },
+
+    async closeScanner(){
+      this.scanner.open = false;
+      this.scanner.error = '';
+      if(window.StayTokenQR){
+        await window.StayTokenQR.stop();
+      }
+    },
+
+    normalizeClaim(value){
+      if(!value){ return null; }
+      const trimmed = String(value).trim();
+      try {
+        const url = new URL(trimmed, window.location.origin);
+        if(url.pathname.startsWith('/claim/')){
+          return url.pathname.endsWith('/') ? url.pathname : url.pathname + '/';
+        }
+      } catch (_) {}
+      if(/^[A-Za-z0-9_-]{6,}$/.test(trimmed)){
+        return `/claim/${trimmed}/`;
+      }
+      return null;
+    },
+
+    handleScan(payload){
+      const target = this.normalizeClaim(payload);
+      if(!target){
+        this.scanner.error = 'Unable to decode QR. Please try again.';
+        return;
+      }
+      window.StayTokenQR.stop().then(() => {
+        this.scanner.open = false;
+        window.location.href = target;
+      });
+    },
+  };
+}
+</script>
+{% endblock %}

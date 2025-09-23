@@ -1,0 +1,88 @@
+{% extends "base_admin.html" %}
+{% block title %}Metric Detail - StayToken{% endblock %}
+{% block content %}
+<div x-data="statDetailView()" x-init="init()" class="space-y-4 pb-16" data-key="{{ key }}">
+  <section class="rounded-2xl border bg-white p-4 shadow-sm">
+    <div class="flex items-center justify-between gap-2">
+      <div class="min-w-0">
+        <h1 class="text-base font-semibold text-slate-900" x-text="title || 'Metric detail'"></h1>
+        <p class="text-sm text-slate-500" x-text="subtitle"></p>
+      </div>
+      <a href="/adv1/console/stats" class="shrink-0 rounded-xl border px-3 py-1.5 text-xs text-slate-600 hover:bg-slate-50">Back to analytics</a>
+    </div>
+  </section>
+
+  <section class="space-y-2.5">
+    <h2 class="text-xs font-semibold uppercase tracking-wide text-slate-500">Quick links</h2>
+    <div class="grid grid-cols-2 gap-2.5 sm:grid-cols-3">
+      <template x-if="key === 'users_total'">
+        <a href="/adv1/admin/users" class="rounded-xl border bg-white px-3 py-2 text-center text-sm text-slate-700 hover:bg-slate-50">Manage users</a>
+      </template>
+      <template x-if="key === 'voucher_campaigns'">
+        <a href="/adv1/admin/vouchers" class="rounded-xl border bg-white px-3 py-2 text-center text-sm text-slate-700 hover:bg-slate-50">Manage vouchers</a>
+      </template>
+      <template x-if="key === 'wallet_active'">
+        <a href="/adv1/admin/users?q=has_wallet" class="rounded-xl border bg-white px-3 py-2 text-center text-sm text-slate-700 hover:bg-slate-50">Users with wallets</a>
+      </template>
+      <template x-if="key === 'tx_today'">
+        <a href="/adv1/admin/merchants?tab=onchain" class="rounded-xl border bg-white px-3 py-2 text-center text-sm text-slate-700 hover:bg-slate-50">On-chain transactions</a>
+      </template>
+      <a href="/adv1/admin/merchants" class="rounded-xl border bg-white px-3 py-2 text-center text-sm text-slate-700 hover:bg-slate-50">POS / Merchants</a>
+    </div>
+  </section>
+</div>
+{% endblock %}
+
+{% block bottom_nav %}
+<nav class="fixed inset-x-0 bottom-0 z-40 border-t bg-white/95 pb-[calc(env(safe-area-inset-bottom)+0.25rem)] backdrop-blur supports-[backdrop-filter]:bg-white/70 sm:hidden">
+  <div class="mx-auto grid max-w-md grid-cols-4 text-[11px]">
+    <a href="/adv1/console" class="flex flex-col items-center gap-0.5 px-2 py-2 text-slate-500">
+      <span class="material-symbols-outlined text-base">dashboard</span>
+      <span>Dashboard</span>
+    </a>
+    <a href="/adv1/console/scan" class="flex flex-col items-center gap-0.5 px-2 py-2 text-slate-500">
+      <span class="material-symbols-outlined text-base">qr_code_scanner</span>
+      <span>QR scan</span>
+    </a>
+    <a href="/adv1/console/stats" class="flex flex-col items-center gap-0.5 px-2 py-2 text-slate-900">
+      <span class="material-symbols-outlined text-base">insights</span>
+      <span>Analytics</span>
+    </a>
+    <a href="/adv1/pos/check" class="flex flex-col items-center gap-0.5 px-2 py-2 text-slate-500">
+      <span class="material-symbols-outlined text-base">storefront</span>
+      <span>POS</span>
+    </a>
+  </div>
+</nav>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+function statDetailView(){
+  return {
+    key: null,
+    title: '',
+    subtitle: '',
+    breakdown: [],
+    chart: [],
+    async init(){
+      this.key = (document.querySelector('[data-key]')?.dataset?.key) || '';
+      if(!this.key){ return; }
+      try{
+        const res = await fetch(`/adv1/console/stats/${this.key}.json`, { headers: { 'Accept':'application/json' } });
+        if(!res.ok){ return; }
+        const data = await res.json();
+        const detail = data.detail || {};
+        this.title = detail.title || '';
+        this.subtitle = detail.subtitle || '';
+        this.breakdown = detail.breakdown || [];
+        this.chart = detail.chart || [];
+      }catch(err){ console.error('Unable to load metric detail', err); }
+    }
+  }
+}
+</script>
+{% endblock %}
+
+
+

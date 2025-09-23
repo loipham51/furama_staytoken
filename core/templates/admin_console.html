@@ -1,0 +1,162 @@
+﻿{% extends "base_admin.html" %}
+{% block title %}Blockchain Console - StayToken{% endblock %}
+{% block content %}
+<div x-data="{ tab: 'queue' }" class="mx-auto max-w-3xl space-y-6 px-4 pb-20 pt-8">
+  <!-- Header / Intro -->
+  <section class="relative overflow-hidden rounded-3xl border border-emerald-100 bg-gradient-to-br from-emerald-50/80 via-white to-emerald-50 p-6 shadow-sm">
+    <div class="pointer-events-none absolute -top-16 -right-16 h-56 w-56 rounded-full bg-emerald-100/40 blur-3xl"></div>
+    <div class="space-y-2 text-emerald-900">
+      <p class="text-[11px] font-semibold uppercase tracking-widest text-emerald-700/70">Furama StayToken</p>
+      <h1 class="text-2xl font-bold leading-tight">Custodial blockchain orchestration</h1>
+      <p class="text-sm leading-relaxed text-emerald-800/80">Track minting, on‑chain executions, and off‑chain voucher claims with a clear, compact view.</p>
+    </div>
+  </section>
+
+  <!-- Tabs -->
+  <div class="sticky top-0 z-10 -mx-4 bg-gradient-to-b from-white/80 to-white/40 px-4 py-2 backdrop-blur supports-[backdrop-filter]:backdrop-blur">
+    <nav class="grid grid-cols-3 gap-2 text-sm text-emerald-900" role="tablist" aria-label="Console sections">
+      <button @click="tab = 'queue'" :aria-selected="tab === 'queue'" :class="tab === 'queue' ? 'bg-emerald-600 text-white shadow-sm ring-1 ring-emerald-600/70' : 'bg-white text-emerald-900 hover:bg-emerald-50'" class="inline-flex items-center justify-center gap-2 rounded-full border border-emerald-100 px-4 py-2 font-semibold transition focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500" role="tab">
+        <svg viewBox="0 0 24 24" class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M3 12h12M3 18h8"/></svg>
+        <span>Pending queue</span>
+      </button>
+      <button @click="tab = 'executions'" :aria-selected="tab === 'executions'" :class="tab === 'executions' ? 'bg-emerald-600 text-white shadow-sm ring-1 ring-emerald-600/70' : 'bg-white text-emerald-900 hover:bg-emerald-50'" class="inline-flex items-center justify-center gap-2 rounded-full border border-emerald-100 px-4 py-2 font-semibold transition focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500" role="tab">
+        <svg viewBox="0 0 24 24" class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12h6l3 8 4-16 3 8h2"/></svg>
+        <span>Executions</span>
+      </button>
+      <button @click="tab = 'claims'" :aria-selected="tab === 'claims'" :class="tab === 'claims' ? 'bg-emerald-600 text-white shadow-sm ring-1 ring-emerald-600/70' : 'bg-white text-emerald-900 hover:bg-emerald-50'" class="inline-flex items-center justify-center gap-2 rounded-full border border-emerald-100 px-4 py-2 font-semibold transition focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500" role="tab">
+        <svg viewBox="0 0 24 24" class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 7l-8 10-5-5"/></svg>
+        <span>Voucher claims</span>
+      </button>
+    </nav>
+  </div>
+
+  <!-- Helpers -->
+  <script>
+    document.addEventListener('alpine:init', () => {
+      Alpine.magic('copy', () => (text) => navigator.clipboard?.writeText(text))
+    })
+  </script>
+
+  <!-- Queue -->
+  <section x-show="tab === 'queue'" x-cloak class="space-y-4" aria-labelledby="queue-title">
+    <h2 id="queue-title" class="text-xs font-semibold uppercase tracking-wide text-emerald-700/80">Queue (ready to sign / broadcast)</h2>
+    {% if pending_txs %}
+      <ul class="space-y-3">
+        {% for tx in pending_txs %}
+        <li class="rounded-2xl border border-emerald-100 bg-white/90 p-4 shadow-sm transition hover:shadow-md">
+          <div class="flex items-start justify-between gap-3 text-sm text-emerald-900">
+            <p class="truncate font-semibold">{{ tx.voucher }}</p>
+            <time class="shrink-0 text-xs text-emerald-700/60">{{ tx.created_at|date:"Y-m-d H:i" }}</time>
+          </div>
+          <dl class="mt-3 grid grid-cols-2 gap-x-6 gap-y-2 text-[13px] text-emerald-900/90">
+            <div>
+              <dt class="font-semibold">Amount</dt>
+              <dd class="mt-0.5 font-semibold text-emerald-700">{{ tx.amount }}</dd>
+            </div>
+            <div>
+              <dt class="font-semibold">Wallet</dt>
+              <dd class="mt-0.5 font-mono text-[12px]">{{ tx.wallet.short_address|default:'-' }}</dd>
+            </div>
+            <div>
+              <dt class="font-semibold">Guest</dt>
+              <dd class="mt-0.5">{{ tx.wallet.guest_name|default:'Guest wallet' }}</dd>
+            </div>
+            <div>
+              <dt class="font-semibold">Status</dt>
+              <dd class="mt-0.5 inline-flex items-center gap-2 rounded-full bg-amber-50 px-3 py-1 text-amber-800 ring-1 ring-amber-200">{{ tx.status }}</dd>
+            </div>
+          </dl>
+        </li>
+        {% endfor %}
+      </ul>
+    {% else %}
+      <div class="rounded-2xl border border-dashed border-emerald-200 bg-white p-6 text-center text-sm text-emerald-700/80">
+        <div class="mx-auto mb-2 h-8 w-8 rounded-full bg-emerald-50 ring-1 ring-emerald-100"></div>
+        <p class="font-medium">No queued transactions</p>
+        <p class="mt-1 text-emerald-700/70">Minting queue is empty.</p>
+      </div>
+    {% endif %}
+  </section>
+
+  <!-- Executions -->
+  <section x-show="tab === 'executions'" x-cloak class="space-y-4" aria-labelledby="exec-title">
+    <h2 id="exec-title" class="text-xs font-semibold uppercase tracking-wide text-emerald-700/80">Recent on‑chain executions</h2>
+    {% if recent_txs %}
+      <ul class="space-y-3">
+        {% for tx in recent_txs %}
+        <li class="rounded-2xl border border-emerald-100 bg-white/90 p-4 shadow-sm transition hover:shadow-md">
+          <div class="flex items-start justify-between gap-3 text-sm text-emerald-900">
+            <p class="truncate font-semibold">{{ tx.voucher }}</p>
+            <time class="shrink-0 text-xs text-emerald-700/60">{{ tx.updated_at|date:"Y-m-d H:i" }}</time>
+          </div>
+          <dl class="mt-3 grid grid-cols-2 gap-x-6 gap-y-2 text-[13px] text-emerald-900/90">
+            <div>
+              <dt class="font-semibold">Amount</dt>
+              <dd class="mt-0.5 font-semibold text-emerald-700">{{ tx.amount }}</dd>
+            </div>
+            <div class="col-span-2">
+              <dt class="font-semibold">Tx hash</dt>
+              <dd class="mt-1 flex min-w-0 items-center gap-2">
+                <span class="block w-full break-all rounded-lg bg-emerald-50 px-3 py-2 font-mono text-[12px] text-emerald-900 ring-1 ring-emerald-100">{{ tx.tx_hash|default:'(pending signature)' }}</span>
+                {% if tx.tx_hash %}
+                <button type="button" @click="$copy('{{ tx.tx_hash }}')" class="shrink-0 rounded-lg border border-emerald-200 bg-white px-2 py-1 text-[11px] font-semibold text-emerald-900 hover:bg-emerald-50">Copy</button>
+                {% endif %}
+              </dd>
+            </div>
+            <div>
+              <dt class="font-semibold">Wallet</dt>
+              <dd class="mt-0.5 font-mono text-[12px]">{{ tx.wallet.short_address|default:'-' }}</dd>
+            </div>
+            <div>
+              <dt class="font-semibold">Status</dt>
+              <dd class="mt-0.5">
+                {% if tx.status_code == 'confirmed' %}
+                  <span class="inline-flex items-center rounded-full bg-emerald-50 px-3 py-1 text-emerald-900 ring-1 ring-emerald-200">Confirmed</span>
+                {% elif tx.status_code == 'failed' %}
+                  <span class="inline-flex items-center rounded-full bg-rose-50 px-3 py-1 text-rose-800 ring-1 ring-rose-200">Failed</span>
+                {% else %}
+                  <span class="inline-flex items-center rounded-full bg-slate-100 px-3 py-1 text-slate-700 ring-1 ring-slate-200">{{ tx.status }}</span>
+                {% endif %}
+              </dd>
+            </div>
+          </dl>
+        </li>
+        {% endfor %}
+      </ul>
+    {% else %}
+      <div class="rounded-2xl border border-dashed border-emerald-200 bg-white p-6 text-center text-sm text-emerald-700/80">
+        <div class="mx-auto mb-2 h-8 w-8 rounded-full bg-emerald-50 ring-1 ring-emerald-100"></div>
+        <p class="font-medium">No on‑chain transactions yet</p>
+        <p class="mt-1 text-emerald-700/70">Executions will appear here as they confirm.</p>
+      </div>
+    {% endif %}
+  </section>
+
+  <!-- Claims -->
+  <section x-show="tab === 'claims'" x-cloak class="space-y-4" aria-labelledby="claims-title">
+    <h2 id="claims-title" class="text-xs font-semibold uppercase tracking-wide text-emerald-700/80">Voucher claims (off‑chain log)</h2>
+    {% if claim_logs %}
+      <ul class="space-y-3">
+        {% for log in claim_logs %}
+        <li class="rounded-2xl border border-emerald-100 bg-white/90 p-4 shadow-sm transition hover:shadow-md">
+          <div class="flex items-start justify-between gap-3 text-[13px] text-emerald-900/90">
+            <div class="min-w-0">
+              <p class="truncate text-sm font-semibold text-emerald-950">{{ log.voucher }}</p>
+              <p class="mt-1 truncate">Wallet <span class="font-mono text-[12px]">{{ log.wallet.short_address|default:'-' }}</span> · Guest {{ log.wallet.guest_name|default:'-' }}</p>
+            </div>
+            <time class="shrink-0 text-xs text-emerald-700/60">{{ log.created_at|date:"Y-m-d H:i" }}</time>
+          </div>
+          <p class="mt-2 text-[13px]">Amount: <span class="font-semibold text-emerald-700">{{ log.amount }}</span></p>
+        </li>
+        {% endfor %}
+      </ul>
+    {% else %}
+      <div class="rounded-2xl border border-dashed border-emerald-200 bg-white p-6 text-center text-sm text-emerald-700/80">
+        <div class="mx-auto mb-2 h-8 w-8 rounded-full bg-emerald-50 ring-1 ring-emerald-100"></div>
+        <p class="font-medium">No recent claim activity</p>
+        <p class="mt-1 text-emerald-700/70">Claims will appear as guests redeem vouchers.</p>
+      </div>
+    {% endif %}
+  </section>
+</div>
+{% endblock %}

@@ -1,0 +1,66 @@
+{% load static %}
+<!doctype html>
+<html lang="en" class="h-full bg-[#f6fbf6]">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <title>{% block title %}Admin - StayToken{% endblock %}</title>
+  <meta name="theme-color" content="#0f172a" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
+  <style>
+    [x-cloak]{display:none!important}
+    body{font-feature-settings:'ss01','ss02';}
+  </style>
+</head>
+<body class="min-h-full antialiased text-slate-800">
+  <header class="mx-auto max-w-md px-4 pt-5 pb-3 space-y-4">
+    <div class="flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <div class="grid h-11 w-11 place-items-center rounded-2xl bg-white text-sm font-semibold text-emerald-600 shadow">VW</div>
+        <div class="leading-tight">
+          <p class="text-sm font-semibold text-slate-900">StayToken Admin</p>
+          <p class="text-xs text-slate-500">System management</p>
+        </div>
+      </div>
+      <div class="flex items-center gap-2">
+        <span class="rounded-full bg-rose-100 px-2 py-1 text-[11px] font-medium text-rose-600">Super Admin</span>
+        <div class="grid h-9 w-9 place-items-center rounded-full border border-emerald-100 bg-white text-sm font-semibold text-slate-700">
+          {{ request.user.get_username|default:'A'|slice:':1'|upper }}
+        </div>
+      </div>
+    </div>
+  </header>
+
+  {% include "includes/admin_top_nav.html" %}
+
+  <main class="mx-auto max-w-md space-y-5 px-4 pb-24">
+    {% block content %}{% endblock %}
+  </main>
+
+  {% block bottom_nav %}{% endblock %}
+
+  {% block extra_scripts %}{% endblock %}
+
+  <script src="https://unpkg.com/html5-qrcode@2.3.10/html5-qrcode.min.js"></script>
+  <script>
+    window.StayTokenQR = (function(){
+      let active = null;
+      async function stop(){ if(!active){ return; } const i=active; active=null; try{await i.stop();}catch(_){ } try{i.clear();}catch(_){ } }
+      async function start(targetId, onResult, onError){
+        if(!window.Html5Qrcode){ throw new Error('QR scanner library is not loaded'); }
+        await stop();
+        const scanner = new Html5Qrcode(targetId); active = scanner;
+        const config = { fps: 10, qrbox: 240, aspectRatio: 1.0 };
+        try{
+          await scanner.start({ facingMode: 'environment' }, config,
+            (decoded) => { if(typeof onResult==='function'){ onResult(decoded, stop); } },
+            (err) => { if(typeof onError==='function'){ onError(err); } }
+          );
+        }catch(err){ await stop(); throw err; }
+      }
+      return { start, stop };
+    })();
+  </script>
+</body>
+</html>

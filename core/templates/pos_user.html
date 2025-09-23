@@ -1,0 +1,124 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}My vouchers{% endblock %}
+{% block content %}
+<div x-data="posUserPortal()" x-init="init()" class="space-y-5">
+  <section class="space-y-3 rounded-3xl border bg-white p-5 shadow-sm">
+    <div class="flex items-start gap-3">
+      <div class="grid h-12 w-12 place-items-center rounded-2xl bg-slate-900 text-lg font-semibold text-white">QR</div>
+      <div class="min-w-0">
+        <h1 class="text-lg font-semibold text-slate-900">Claimed vouchers</h1>
+        <p class="text-sm text-slate-500">Select a voucher to display its QR code for POS redemption.</p>
+      </div>
+    </div>
+    {% if wallet_address %}
+      <div class="rounded-2xl bg-slate-50 p-3 text-xs font-mono text-slate-600">
+        Your custodial wallet: {{ wallet_address }}
+      </div>
+    {% else %}
+      <div class="rounded-2xl bg-rose-50 p-3 text-xs text-rose-600">
+        You do not have any vouchers yet. Scan the claim QR to receive a benefit.
+      </div>
+    {% endif %}
+  </section>
+
+  <template x-if="vouchers.length === 0">
+    <div class="rounded-3xl border border-dashed p-8 text-center text-sm text-slate-500">
+      Voucher list will appear here after a successful claim.
+    </div>
+  </template>
+
+  <template x-if="vouchers.length">
+    <section class="space-y-4">
+      <div class="flex items-center justify-between">
+        <h2 class="text-sm font-semibold uppercase tracking-wider text-slate-500">Your vouchers</h2>
+        <button type="button" class="text-xs text-slate-500 underline" @click="refresh()">Refresh</button>
+      </div>
+      <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <template x-for="item in vouchers" :key="item.slug">
+          <button type="button" @click="show(item)" class="flex h-full flex-col rounded-3xl border bg-white p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-lg focus:outline-none focus-visible:ring">
+            <div class="flex items-center justify-between gap-2">
+              <h3 class="flex-1 text-base font-semibold text-slate-900" x-text="item.name"></h3>
+              <span class="rounded-full bg-slate-900 px-3 py-1 text-xs font-medium text-white" x-text="'x' + item.balance"></span>
+            </div>
+            <p class="mt-2 line-clamp-3 text-sm text-slate-600" x-text="item.description || 'ERC-1155 voucher issued via StayToken.'"></p>
+            <div class="mt-auto pt-3 text-xs text-slate-400" x-text="'Slug: ' + item.slug"></div>
+          </button>
+        </template>
+      </div>
+    </section>
+  </template>
+
+  <div x-show="selected" x-cloak class="fixed inset-0 z-50 flex items-end justify-center bg-slate-900/40 px-4 pb-4 pt-10 sm:px-0">
+    <div class="w-full max-w-md rounded-t-3xl bg-white shadow-lg" @click.outside="close()">
+      <div class="space-y-5 px-6 pb-6 pt-5">
+        <div class="flex items-start justify-between">
+          <div>
+            <h2 class="text-base font-semibold text-slate-900" x-text="selected?.name"></h2>
+            <p class="text-sm text-slate-500" x-text="'Token ID #' + (selected?.token_id || '-')"></p>
+          </div>
+          <button type="button" class="rounded-full border border-slate-200 p-2 text-xs text-slate-500" @click="close()">Close</button>
+        </div>
+        <div class="flex flex-col items-center gap-3">
+          <div class="rounded-3xl border bg-white p-3 shadow-inner">
+            <img :src="selected?.qr_url" alt="Voucher QR" class="h-56 w-56 object-contain" loading="lazy">
+          </div>
+          <div class="text-center text-xs text-slate-500">
+            <p>Present this QR to the POS staff to redeem your benefit.</p>
+            <p class="mt-1 font-mono text-slate-400" x-text="shortWallet()"></p>
+          </div>
+        </div>
+        <div class="grid grid-cols-2 gap-3 text-xs text-slate-500">
+          <div class="rounded-2xl bg-slate-50 p-3">
+            <p class="text-[11px] uppercase tracking-wide text-slate-400">Units available</p>
+            <p class="mt-1 text-base font-semibold text-slate-900" x-text="selected?.balance"></p>
+          </div>
+          <div class="rounded-2xl bg-slate-50 p-3">
+            <p class="text-[11px] uppercase tracking-wide text-slate-400">Slug</p>
+            <p class="mt-1 break-all font-mono text-[13px] text-slate-700" x-text="selected?.slug"></p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+{{ vouchers|json_script:"pos-vouchers-data" }}
+<script>
+function posUserPortal(){
+  return {
+    vouchers: [],
+    selected: null,
+    wallet: '{{ wallet_address }}',
+    init(){
+      const raw = document.getElementById('pos-vouchers-data');
+      if(raw){
+        try {
+          this.vouchers = JSON.parse(raw.textContent);
+        } catch (err) {
+          console.error('Unable to parse voucher data', err);
+        }
+      }
+      if(this.vouchers.length === 1){
+        this.selected = this.vouchers[0];
+      }
+    },
+    refresh(){
+      window.location.reload();
+    },
+    show(item){
+      this.selected = item;
+      document.body.classList.add('overflow-hidden');
+    },
+    close(){
+      this.selected = null;
+      document.body.classList.remove('overflow-hidden');
+    },
+    shortWallet(){
+      if(!this.wallet){ return ''; }
+      return this.wallet.slice(0, 10) + '...' + this.wallet.slice(-6);
+    }
+  };
+}
+</script>
+{% endblock %}

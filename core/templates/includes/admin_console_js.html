@@ -1,0 +1,148 @@
+<script>
+function adminConsole(){
+  return {
+    stats: [],
+    activities: [],
+    loading: { stats: true, activity: true },
+    detail: null,
+
+    async init(){
+      await Promise.all([this.loadStats(), this.loadActivity()]);
+      setInterval(() => this.refreshAll(), 45000);
+    },
+
+    refreshAll(){
+      this.loadStats();
+      this.loadActivity();
+    },
+
+    async loadStats(){
+      this.loading.stats = true;
+      try {
+        const res = await fetch('/adv1/console/stats.json', { headers: { 'Accept': 'application/json' } });
+        if(res.ok){
+          const data = await res.json();
+          this.stats = data.stats || [];
+          this.renderStats();
+        }
+      } catch (err) {
+        console.error('Unable to load dashboard metrics', err);
+      } finally {
+        this.loading.stats = false;
+      }
+    },
+
+    renderStats(){
+      const grid = document.getElementById('stats');
+      if(!grid){ return; }
+      grid.innerHTML = '';
+      if(!this.stats.length){
+        grid.innerHTML = '<div class="rounded-2xl border bg-white p-4 text-sm text-slate-500">No metrics available.</div>';
+        return;
+      }
+      const fragment = document.createDocumentFragment();
+      this.stats.forEach(item => {
+        const trendColor = item.changeType === 'positive' ? 'text-emerald-600' : item.changeType === 'negative' ? 'text-rose-600' : 'text-slate-500';
+        const trendIndicator = item.changeType === 'positive' ? '+' : item.changeType === 'negative' ? '-' : '~';
+        const card = document.createElement('button');
+        card.type = 'button';
+        card.className = 'rounded-2xl border bg-white p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-lg focus:outline-none focus-visible:ring';
+        card.innerHTML = `
+          <div class="flex items-center justify-between gap-2">
+            <div class="text-[13px] font-medium text-slate-600">${item.title || ''}</div>
+            <span class="rounded-full bg-slate-100 px-2 py-1 text-[11px] uppercase text-slate-500">${item.tag || 'KPI'}</span>
+          </div>
+          <div class="mt-2 text-2xl font-semibold tracking-tight text-slate-900">${item.value || '-'}</div>
+          <div class="mt-1 text-xs text-slate-500">
+            <span class="${trendColor} font-semibold">${trendIndicator} ${item.change || '0%'}</span>
+            <span class="ml-1">vs previous period</span>
+          </div>
+        `;
+        card.addEventListener('click', (e) => {
+          e.preventDefault();
+          if(item && item.key){
+            location.href = `/adv1/console/stats/${item.key}`;
+          }
+        });
+        fragment.appendChild(card);
+      });
+      grid.appendChild(fragment);
+    },
+
+    async loadDetail(key){
+      if(!key){ return; }
+      try {
+        const res = await fetch(`/adv1/console/stats/${key}.json`, { headers: { 'Accept': 'application/json' } });
+        if(res.ok){
+          const data = await res.json();
+          this.detail = data.detail || null;
+          document.body.classList.add('overflow-hidden');
+        }
+      } catch (err) {
+        console.error('Unable to load metric detail', err);
+      }
+    },
+
+    closeDetail(){
+      this.detail = null;
+      document.body.classList.remove('overflow-hidden');
+    },
+
+    async loadActivity(){
+      this.loading.activity = true;
+      try {
+        const res = await fetch('/adv1/console/recent.json', { headers: { 'Accept': 'application/json' } });
+        if(res.ok){
+          const data = await res.json();
+          this.activities = data.activities || [];
+          this.renderActivity();
+        }
+      } catch (err) {
+        console.error('Unable to load recent activity', err);
+      } finally {
+        this.loading.activity = false;
+      }
+    },
+
+    renderActivity(){
+      const list = document.getElementById('activity');
+      if(!list){ return; }
+      list.innerHTML = '';
+      if(!this.activities.length){
+        list.innerHTML = '<div class="rounded-2xl border bg-white p-3.5 text-sm text-slate-500">No recent activity.</div>';
+        return;
+      }
+      const badgeMap = {
+        success: 'border border-emerald-200 bg-emerald-50 text-emerald-600',
+        warning: 'border border-amber-200 bg-amber-50 text-amber-600',
+        error: 'border border-rose-200 bg-rose-50 text-rose-600',
+        default: 'border border-slate-200 bg-slate-100 text-slate-600'
+      };
+      const formatter = new Intl.DateTimeFormat('en-US', { dateStyle: 'short', timeStyle: 'medium' });
+      const fragment = document.createDocumentFragment();
+      this.activities.forEach(item => {
+        const row = document.createElement('div');
+        row.className = 'rounded-2xl border bg-white p-3.5 shadow-sm';
+        const status = item.status || 'default';
+        const badgeClass = badgeMap[status] || badgeMap.default;
+        const timestamp = item.timestamp ? formatter.format(new Date(item.timestamp)) : '';
+        row.innerHTML = `
+          <div class="flex items-start gap-3">
+            <div class="grid h-10 w-10 place-items-center rounded-2xl bg-slate-100 text-sm text-slate-600">${(item.icon || 'EV').slice(0,2)}</div>
+            <div class="min-w-0 flex-1 space-y-1.5">
+              <div class="flex flex-wrap items-center gap-2">
+                <span class="break-all text-sm font-semibold text-slate-900">${item.user || 'System'}</span>
+                <span class="rounded-full px-2 py-0.5 text-[10px] ${badgeClass}">${item.status_label || status}</span>
+              </div>
+              <p class="break-words text-sm text-slate-600">${item.action || ''}</p>
+              <p class="text-[11px] text-slate-400">${timestamp}</p>
+            </div>
+          </div>
+        `;
+        fragment.appendChild(row);
+      });
+      list.appendChild(fragment);
+    }
+  };
+}
+</script>

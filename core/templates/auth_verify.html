@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block title %}Enter OTP - Furama StayToken{% endblock %}
+{% block content %}
+<div class="space-y-4 rounded-2xl bg-white p-5 shadow">
+  <h1 class="text-lg font-semibold">Enter the 6-digit OTP</h1>
+  {% if error %}<div class="rounded-xl bg-rose-50 p-3 text-sm text-rose-700">{{ error }}</div>{% endif %}
+  {% if message %}<div class="rounded-xl bg-emerald-50 p-3 text-sm text-emerald-700">{{ message }}</div>{% endif %}
+  <form method="post" action="/auth/verify" class="space-y-3">
+    {% csrf_token %}
+    <input type="hidden" name="email" value="{{ email|default:'' }}">
+    <input type="hidden" name="next" value="{{ next|default:'' }}">
+    <label class="block">
+      <span class="text-sm">OTP code</span>
+      <input name="code" pattern="[0-9]{6}" maxlength="6" class="mt-1 w-full rounded-xl border p-3 font-mono" placeholder="000000" required>
+    </label>
+    <button class="w-full rounded-xl bg-slate-900 py-3 text-sm font-semibold text-white">Verify</button>
+  </form>
+  <form method="post" action="/auth/start" class="text-center">
+    {% csrf_token %}
+    <input type="hidden" name="email" value="{{ email|default:'' }}">
+    <input type="hidden" name="next" value="{{ next|default:'' }}">
+    <button class="text-sm text-gray-600 underline">Resend OTP</button>
+  </form>
+</div>
+{% endblock %}

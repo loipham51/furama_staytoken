@@ -1,0 +1,292 @@
+{% load static %}
+<!doctype html>
+<html lang="en" class="h-full bg-slate-50">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <title>{% block title %}Furama StayToken{% endblock %}</title>
+  <meta name="theme-color" content="#0f172a" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
+  <style>
+    [x-cloak]{display:none!important}
+    body{font-feature-settings:'ss01','ss02';}
+    [x-data="metaMaskWidget()"]{display:none!important}
+  </style>
+</head>
+<body class="min-h-full antialiased text-slate-800">
+  <header class="sticky top-0 z-40 border-b bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/70">
+    <div class="mx-auto flex max-w-md items-center gap-3 px-4 py-3">
+      <a href="/" class="flex items-center gap-2">
+        <img src="{% static 'assets/img/logo.png' %}" alt="Furama" class="h-9 w-9 rounded-2xl shadow-sm">
+        <div class="leading-tight">
+          <p class="text-sm font-semibold">Furama StayToken</p>
+          <p class="text-xs text-slate-500">Digital vouchers for Furama guests</p>
+        </div>
+      </a>
+      <div class="ml-auto flex items-center gap-2">
+        <a href="/" class="hidden text-xs text-slate-500 hover:text-slate-900 sm:inline">Home</a>
+        <div x-data="metaMaskWidget()" x-init="init()" class="hidden items-center gap-2 text-[11px] text-slate-500 sm:flex">
+          <template x-if="!hasProvider">
+            <span class="text-slate-400">No wallet</span>
+          </template>
+          <template x-if="hasProvider">
+            <button x-show="!connected" @click="connect" class="inline-flex items-center gap-1 rounded-full border px-3 py-1.5 text-xs font-medium hover:bg-slate-50">
+              <span>Connect wallet</span>
+            </button>
+            <div x-show="connected" class="flex items-center gap-1 rounded-full border px-3 py-1.5">
+              <span class="font-semibold text-slate-700" x-text="shortAddress()"></span>
+              <span class="rounded bg-slate-100 px-2 text-[10px]" x-text="chainLabel()"></span>
+            </div>
+          </template>
+          <template x-if="error">
+            <span class="text-[10px] text-rose-500" x-text="error"></span>
+          </template>
+        </div>
+        <div x-data="{open:false}" class="relative">
+          <button @click="open=!open" @keydown.escape="open=false" class="inline-flex items-center gap-2 rounded-full border px-3 py-2 text-sm hover:bg-slate-50">
+            <span class="grid h-7 w-7 place-items-center rounded-full bg-slate-900 text-[11px] font-semibold text-white">
+              {% if request.session.user_id %}ME{% else %}?{% endif %}
+            </span>
+            <svg class="h-4 w-4 text-slate-500" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+              <path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.17l3.71-3.94a.75.75 0 011.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z" clip-rule="evenodd" />
+            </svg>
+          </button>
+          <nav x-cloak x-show="open" @click.outside="open=false" x-transition class="absolute right-0 mt-2 w-60 overflow-hidden rounded-2xl bg-white shadow-xl ring-1 ring-slate-900/5">
+            {% if request.session.user_id %}
+              <div class="py-2">
+                <a href="/me" class="flex items-center gap-3 px-4 py-2 text-sm hover:bg-slate-50">
+                  <svg class="h-4 w-4 text-slate-700" viewBox="0 0 24 24" fill="none"><path d="M12 12a5 5 0 100-10 5 5 0 000 10zM21 22a9 9 0 10-18 0" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" /></svg>
+                  My profile
+                </a>
+                <a href="/wallet/export" class="flex items-center gap-3 px-4 py-2 text-sm hover:bg-slate-50">
+                  <svg class="h-4 w-4 text-slate-700" viewBox="0 0 24 24" fill="none"><path d="M3 7h14a2 2 0 012 2v6a2 2 0 01-2 2H3V7zM17 7V5a2 2 0 00-2-2H5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" /></svg>
+                  Wallet & transfer
+                </a>
+                <a href="/pos/check" class="flex items-center gap-3 px-4 py-2 text-sm hover:bg-slate-50">
+                  <svg class="h-4 w-4 text-slate-700" viewBox="0 0 24 24" fill="none"><path d="M4 7h16M6 11h12M8 15h8M10 19h4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" /></svg>
+                  My vouchers
+                </a>
+                {% if request.user.is_authenticated and request.user.is_staff %}
+                <a href="/adv1/console" class="flex items-center gap-3 px-4 py-2 text-sm hover:bg-slate-50">
+                  <svg class="h-4 w-4 text-slate-700" viewBox="0 0 24 24" fill="none"><path d="M12 3v18M3 12h18" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" /></svg>
+                  Admin console
+                </a>
+                {% endif %}
+              </div>
+              <div class="border-t"></div>
+              <div class="py-1">
+                <a href="/logout" class="flex items-center gap-3 px-4 py-2 text-sm text-rose-600 hover:bg-rose-50">
+                  <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none"><path d="M15 7l5 5-5 5M20 12H9" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" /></svg>
+                  Sign out
+                </a>
+              </div>
+            {% else %}
+              <div class="py-2">
+                <a href="/auth/start" class="flex items-center gap-3 px-4 py-2 text-sm hover:bg-slate-50">
+                  <svg class="h-4 w-4 text-slate-700" viewBox="0 0 24 24" fill="none"><path d="M12 12a5 5 0 100-10 5 5 0 000 10zM21 22a9 9 0 10-18 0" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" /></svg>
+                  Sign in
+                </a>
+                {% if request.user.is_authenticated and request.user.is_staff %}
+                <a href="/adv1/console" class="flex items-center gap-3 px-4 py-2 text-sm hover:bg-slate-50">
+                  <svg class="h-4 w-4 text-slate-700" viewBox="0 0 24 24" fill="none"><path d="M12 3v18M3 12h18" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" /></svg>
+                  Admin console
+                </a>
+                {% endif %}
+              </div>
+            {% endif %}
+          </nav>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <main class="mx-auto max-w-md space-y-5 px-4 py-5">
+    {% block content %}{% endblock %}
+  </main>
+
+  {% block bottom_nav %}{% endblock %}
+
+  {% block extra_scripts %}{% endblock %}
+
+  <script src="https://unpkg.com/html5-qrcode@2.3.10/html5-qrcode.min.js"></script>
+  <script>
+    window.StayTokenQR = (function(){
+      let active = null;
+
+      async function stop(){
+        if(!active){ return; }
+        const instance = active;
+        active = null;
+        try {
+          await instance.stop();
+        } catch (err) {
+          console.warn('QR stop failed', err);
+        }
+        try {
+          instance.clear();
+        } catch (err) {
+          console.warn('QR clear failed', err);
+        }
+      }
+
+      async function start(targetId, onResult, onError){
+        if(!window.Html5Qrcode){
+          throw new Error('QR scanner library is not loaded');
+        }
+        await stop();
+        const scanner = new Html5Qrcode(targetId);
+        active = scanner;
+        const config = { fps: 10, qrbox: 240, aspectRatio: 1.0 };
+        try {
+          await scanner.start({ facingMode: 'environment' }, config, (decoded) => {
+            if(typeof onResult === 'function'){
+              onResult(decoded, stop);
+            }
+          }, (err) => {
+            if(typeof onError === 'function'){
+              onError(err);
+            }
+          });
+        } catch (err) {
+          await stop();
+          throw err;
+        }
+      }
+
+      return { start, stop };
+    })();
+  </script>
+
+  <script>
+    (function(){
+      const state = { hasProvider: false, connected: false, account: null, chainId: null, error: null };
+      const subscribers = new Set();
+      let eventsBound = false;
+
+      function emit(){
+        const snapshot = Object.assign({}, state);
+        subscribers.forEach(function(cb){
+          try { cb(snapshot); } catch (err) { console.error('StayTokenMetaMask subscriber error', err); }
+        });
+      }
+
+      function update(partial){
+        Object.assign(state, partial);
+        emit();
+      }
+
+      function ensureProviderFlag(){
+        update({ hasProvider: typeof window.ethereum !== 'undefined' });
+        return state.hasProvider;
+      }
+
+      function normalizeChainId(chainId){
+        if (!chainId) { return null; }
+        if (typeof chainId === 'number') { return chainId; }
+        if (typeof chainId === 'string' && chainId.startsWith('0x')) {
+          return parseInt(chainId, 16);
+        }
+        const parsed = parseInt(chainId, 10);
+        return Number.isNaN(parsed) ? null : parsed;
+      }
+
+      function handleAccounts(accounts){
+        if (accounts && accounts.length){
+          update({ connected: true, account: accounts[0], error: null });
+        } else {
+          update({ connected: false, account: null });
+        }
+      }
+
+      function handleChain(chainId){
+        update({ chainId: chainId || null });
+      }
+
+      function bindProviderEvents(){
+        if (eventsBound || !window.ethereum){ return; }
+        window.ethereum.on('accountsChanged', handleAccounts);
+        window.ethereum.on('chainChanged', handleChain);
+        eventsBound = true;
+      }
+
+      window.StayTokenMetaMask = {
+        subscribe(callback){
+          if (typeof callback === 'function'){
+            subscribers.add(callback);
+            callback(Object.assign({}, state));
+            return () => subscribers.delete(callback);
+          }
+          return () => {};
+        },
+        get account(){ return state.account; },
+        get chainId(){ return state.chainId; },
+        get connected(){ return state.connected; },
+        get hasProvider(){ return state.hasProvider; },
+        async connect(){
+          if (!ensureProviderFlag()){
+            throw new Error('MetaMask not detected');
+          }
+          bindProviderEvents();
+          const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
+          handleAccounts(accounts);
+          const chain = await window.ethereum.request({ method: 'eth_chainId' });
+          handleChain(chain);
+          return Object.assign({}, state);
+        }
+      };
+
+      window.metaMaskWidget = function metaMaskWidget(){
+        return {
+          hasProvider: state.hasProvider,
+          connected: state.connected,
+          account: state.account,
+          chainId: state.chainId,
+          error: state.error,
+          init(){
+            if (!ensureProviderFlag()){
+              this.hasProvider = false;
+              return;
+            }
+            this.hasProvider = true;
+            bindProviderEvents();
+            window.ethereum.request({ method: 'eth_accounts' })
+              .then(handleAccounts)
+              .catch(() => {});
+            window.ethereum.request({ method: 'eth_chainId' })
+              .then(handleChain)
+              .catch(() => {});
+            window.StayTokenMetaMask.subscribe(snapshot => {
+              this.hasProvider = snapshot.hasProvider;
+              this.connected = snapshot.connected;
+              this.account = snapshot.account;
+              this.chainId = snapshot.chainId;
+              this.error = snapshot.error;
+            });
+          },
+          async connect(){
+            try {
+              await window.StayTokenMetaMask.connect();
+            } catch (err) {
+              const message = err && err.message ? err.message : 'Unable to connect MetaMask';
+              this.error = message;
+              update({ error: message });
+            }
+          },
+          shortAddress(){
+            if (!this.account){ return ''; }
+            return this.account.slice(0, 6) + '...' + this.account.slice(-4);
+          },
+          chainLabel(){
+            const normalized = normalizeChainId(this.chainId);
+            if (normalized === null){
+              return 'unknown';
+            }
+            return '#' + normalized.toString();
+          }
+        };
+      };
+    })();
+  </script>
+</body>
+</html>

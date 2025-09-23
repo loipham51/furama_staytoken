@@ -1,0 +1,64 @@
+{% extends "base_admin.html" %}
+{% block title %}Analytics - StayToken{% endblock %}
+{% block content %}
+<div x-data="adminConsole()" x-init="init()" class="space-y-4 pb-16">
+  <section class="rounded-2xl border bg-white p-4 shadow-sm">
+    <div class="flex items-start gap-2.5">
+      <div class="grid h-10 w-10 place-items-center rounded-xl bg-slate-900 text-sm font-semibold text-white">ANL</div>
+      <div class="min-w-0">
+        <h1 class="text-base font-semibold text-slate-900">Analytics</h1>
+        <p class="text-sm text-slate-500">Select a metric to inspect trends, key numbers, and distribution.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="space-y-2.5" aria-label="Metrics">
+    <div class="flex items-center justify-between">
+      <h2 class="text-xs font-semibold uppercase tracking-wide text-slate-500">Overview metrics</h2>
+      <button @click="loadStats" class="text-[11px] font-medium text-slate-500 underline">Refresh</button>
+    </div>
+    <div id="stats" class="grid grid-cols-1 gap-2.5 sm:grid-cols-2"></div>
+    <template x-if="loading.stats">
+      <div class="grid animate-pulse grid-cols-1 gap-2.5 sm:grid-cols-2">
+        <template x-for="i in 4" :key="i">
+          <div class="rounded-2xl border bg-white p-4">
+            <div class="h-3 w-24 rounded bg-slate-200"></div>
+            <div class="mt-2 h-6 w-28 rounded bg-slate-200"></div>
+            <div class="mt-1.5 h-3 w-32 rounded bg-slate-200"></div>
+          </div>
+        </template>
+      </div>
+    </template>
+  </section>
+</div>
+{% endblock %}
+
+{% block bottom_nav %}
+<nav class="fixed inset-x-0 bottom-0 z-40 border-t bg-white/95 pb-[calc(env(safe-area-inset-bottom)+0.25rem)] backdrop-blur supports-[backdrop-filter]:bg-white/70 sm:hidden">
+  <div class="mx-auto grid max-w-md grid-cols-4 text-[11px]">
+    <a href="/adv1/console" class="flex flex-col items-center gap-0.5 px-2 py-2 text-slate-500">
+      <span class="material-symbols-outlined text-base">dashboard</span>
+      <span>Dashboard</span>
+    </a>
+    <a href="/adv1/console/scan" class="flex flex-col items-center gap-0.5 px-2 py-2 text-slate-500">
+      <span class="material-symbols-outlined text-base">qr_code_scanner</span>
+      <span>QR scan</span>
+    </a>
+    <a href="/adv1/console/stats" class="flex flex-col items-center gap-0.5 px-2 py-2 text-slate-900">
+      <span class="material-symbols-outlined text-base">insights</span>
+      <span>Analytics</span>
+    </a>
+    <a href="/adv1/pos/check" class="flex flex-col items-center gap-0.5 px-2 py-2 text-slate-500">
+      <span class="material-symbols-outlined text-base">storefront</span>
+      <span>POS</span>
+    </a>
+  </div>
+</nav>
+{% endblock %}
+
+{% block extra_scripts %}
+{% include "includes/admin_console_js.html" %}
+{% endblock %}
+
+
+

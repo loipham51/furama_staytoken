@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block title %}Voucher claimed - Furama StayToken{% endblock %}
+{% block content %}
+<div class="space-y-5 rounded-2xl bg-white p-6 text-center shadow">
+  <div class="mx-auto grid h-12 w-12 place-content-center rounded-2xl bg-emerald-600 text-2xl text-white font-semibold">OK</div>
+  <h2 class="text-xl font-semibold">Voucher claimed</h2>
+  <p class="text-sm text-gray-600">Show the QR code below to POS staff to redeem your benefit.</p>
+
+  {% if qr_png_url %}
+    <img src="{{ qr_png_url }}" alt="Wallet QR" class="mx-auto h-48 w-48 rounded-xl border">
+  {% else %}
+    <div class="text-sm text-rose-600">QR code unavailable. Please refresh the page.</div>
+  {% endif %}
+
+  {% if wallet_address %}
+    <div class="mx-auto max-w-xs break-all rounded-xl bg-gray-50 px-3 py-2 text-xs text-gray-600">
+      Custodial wallet: <span class="font-mono">{{ wallet_address }}</span>
+    </div>
+  {% endif %}
+
+  <div class="grid grid-cols-2 gap-3">
+    <a href="/" class="rounded-xl border py-2 text-sm">Back to home</a>
+    <a href="/wallet/export" class="rounded-xl bg-slate-900 py-2 text-sm font-semibold text-white">Manage wallet</a>
+  </div>
+
+  <div class="space-y-1 text-left text-xs text-gray-500">
+    <p>- StayToken vouchers are ERC-1155 tokens stored inside your custodial wallet.</p>
+    <p>- Depending on policy you may transfer them to a personal wallet or export later.</p>
+  </div>
+</div>
+{% endblock %}

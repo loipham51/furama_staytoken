@@ -1,0 +1,83 @@
+{% extends "base.html" %}
+{% block title %}Enter details - Furama StayToken{% endblock %}
+{% block content %}
+<div x-data="{loading:false}" class="space-y-4 rounded-2xl bg-white p-5 shadow">
+  <div class="flex items-start gap-3">
+    <div class="grid h-10 w-10 place-items-center rounded-xl bg-black text-lg text-white font-semibold">ID</div>
+    <div>
+      <h1 class="text-lg font-semibold">Confirm your information</h1>
+      <p class="text-sm text-gray-600">We need basic details to link your custodial wallet and issue the voucher.</p>
+    </div>
+  </div>
+
+  {% if error %}
+    <div class="rounded-xl bg-rose-50 p-3 text-sm text-rose-700">{{ error }}</div>
+  {% endif %}
+
+  {% if form and form.non_field_errors %}
+    <div class="rounded-xl bg-rose-50 p-3 text-sm text-rose-700">
+      {{ form.non_field_errors|join:', ' }}
+    </div>
+  {% endif %}
+
+  <form method="post" action="./submit" @submit="loading=true" class="space-y-3">
+    {% csrf_token %}
+
+    <label class="block">
+      <span class="text-sm font-medium">Full name</span>
+      {% with value=form.full_name.value|default:form.initial.full_name|default:'' %}
+        <input name="full_name" value="{{ value }}" class="mt-1 w-full rounded-xl border p-3" placeholder="John Doe" required>
+      {% endwith %}
+      {% if form and form.errors.full_name %}
+        <p class="mt-1 text-xs text-rose-600">{{ form.errors.full_name.0 }}</p>
+      {% endif %}
+    </label>
+
+    <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+      <label class="block">
+        <span class="text-sm font-medium">Email (optional)</span>
+        {% with value=form.email.value|default:form.initial.email|default:'' %}
+          <input name="email" type="email" value="{{ value }}" class="mt-1 w-full rounded-xl border p-3" placeholder="you@example.com">
+        {% endwith %}
+        {% if form and form.errors.email %}
+          <p class="mt-1 text-xs text-rose-600">{{ form.errors.email.0 }}</p>
+        {% endif %}
+      </label>
+      <label class="block">
+        <span class="text-sm font-medium">Phone number (optional)</span>
+        {% with value=form.phone.value|default:form.initial.phone|default:'' %}
+          <input name="phone" type="tel" value="{{ value }}" class="mt-1 w-full rounded-xl border p-3" placeholder="09xx xxx xxx">
+        {% endwith %}
+        {% if form and form.errors.phone %}
+          <p class="mt-1 text-xs text-rose-600">{{ form.errors.phone.0 }}</p>
+        {% endif %}
+      </label>
+    </div>
+
+    <label class="mt-2 flex items-start gap-3">
+      {% with checked=form.consent.value|default:form.initial.consent %}
+        <input type="checkbox" name="consent" {% if checked %}checked{% endif %} required class="mt-1">
+      {% endwith %}
+      <span class="text-sm text-gray-700">
+        I agree to the <a class="underline" href="#" onclick="alert('StayToken custodial wallet terms and guest data handling policy.');return false;">Terms</a> and allow Furama to create a custodial wallet for me.
+      </span>
+    </label>
+
+    <button class="flex w-full items-center justify-center gap-2 rounded-xl bg-slate-900 py-3 text-sm font-medium text-white">
+      <span x-show="!loading">Receive voucher</span>
+      <svg x-show="loading" class="h-5 w-5 animate-spin" viewBox="0 0 24 24" fill="none">
+        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
+        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
+      </svg>
+    </button>
+
+    <p class="text-center text-xs text-gray-500">
+      The system validates the QR and anti-bot checks once. If everything looks good, a custodial wallet (MPC/KMS) is created and the voucher is credited instantly.
+    </p>
+  </form>
+</div>
+{% endblock %}
+
+
+
+

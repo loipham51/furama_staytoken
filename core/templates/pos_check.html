@@ -1,0 +1,133 @@
+{% extends "base.html" %}
+{% block title %}POS voucher check - StayToken{% endblock %}
+{% block content %}
+<div x-data="posCheck()" x-init="init()" class="space-y-5 rounded-2xl bg-white p-5 shadow">
+  <div class="flex items-start gap-3">
+    <div class="grid h-12 w-12 place-content-center rounded-2xl bg-black text-xl font-semibold text-white">POS</div>
+    <div class="min-w-0">
+      <h1 class="text-lg font-semibold">POS voucher verification</h1>
+      <p class="text-sm text-gray-600">Enter the POS API key, then scan the voucher QR or type the address and slug to verify balances.</p>
+    </div>
+  </div>
+
+  <div class="space-y-4">
+    <div class="space-y-3 rounded-2xl border p-4">
+      <h2 class="text-sm font-semibold uppercase tracking-wider text-gray-500">Step 1: API key</h2>
+      <p class="text-xs text-gray-500">Each POS terminal has its own API key. Retrieve it from the admin console or run <code>python manage.py refresh_pos_api_keys</code>. It will auto-fill next time.</p>
+      <div class="flex flex-col gap-2 sm:flex-row">
+        <input x-model="api" type="text" autocomplete="off" spellcheck="false" class="flex-1 rounded-xl border p-3 font-mono text-sm" placeholder="STPOS_SPA01_xxx" @input="clearNotice()">
+        <button @click="saveKey" type="button" class="w-full rounded-xl bg-slate-900 px-4 py-2 text-sm font-medium text-white sm:w-auto">Save key</button>
+        <button @click="forgetKey" type="button" class="w-full rounded-xl border border-gray-300 px-4 py-2 text-sm text-gray-700 sm:w-auto">Forget</button>
+      </div>
+      <template x-if="message">
+        <div class="text-xs text-emerald-600" x-text="message"></div>
+      </template>
+      <template x-if="error">
+        <div class="text-xs text-rose-600" x-text="error"></div>
+      </template>
+    </div>
+
+    <div class="space-y-3 rounded-2xl border p-4">
+      <h2 class="text-sm font-semibold uppercase tracking-wider text-gray-500">Step 2: Voucher details</h2>
+      <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <label class="block">
+          <span class="text-sm">Wallet address (0x...)</span>
+          <input x-model="addr" class="mt-1 w-full rounded-xl border p-3 font-mono text-sm" placeholder="0x..." @input="clearResult()">
+        </label>
+        <label class="block">
+          <span class="text-sm">Voucher slug</span>
+          <input x-model="slug" class="mt-1 w-full rounded-xl border p-3 text-sm" placeholder="spa-30off-2025" @input="clearResult()">
+        </label>
+      </div>
+      <div class="flex flex-wrap gap-2 text-xs text-gray-500">
+        <span>Quick fill:</span>
+        <button type="button" @click="slug='spa-30off-2025'" class="rounded-lg border px-2 py-1 text-gray-600 hover:border-gray-400">spa-30off-2025</button>
+        <button type="button" @click="slug='restaurant-lunch-2025'" class="rounded-lg border px-2 py-1 text-gray-600 hover:border-gray-400">restaurant-lunch-2025</button>
+      </div>
+      <button @click="check" type="button" class="flex w-full items-center justify-center gap-2 rounded-xl bg-slate-900 py-3 text-sm font-semibold text-white">
+        <span x-show="!loading">Check balance</span>
+        <svg x-show="loading" class="h-5 w-5 animate-spin" viewBox="0 0 24 24" fill="none">
+          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
+          <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
+        </svg>
+      </button>
+    </div>
+  </div>
+
+  <template x-if="result">
+    <div class="rounded-2xl border bg-gray-50 p-4">
+      <div class="flex items-center justify-between">
+        <p class="text-sm font-semibold text-gray-600">Result</p>
+        <button type="button" class="text-xs text-gray-500 underline" @click="clearResult()">Clear</button>
+      </div>
+      <pre class="mt-2 max-h-60 overflow-auto rounded-xl border bg-white p-3 text-xs" x-text="JSON.stringify(result, null, 2)"></pre>
+    </div>
+  </template>
+</div>
+
+<script>
+function posCheck(){
+  return {
+    api: '',
+    addr: '',
+    slug: 'spa-30off-2025',
+    loading: false,
+    result: null,
+    message: '',
+    error: '',
+    init(){
+      const saved = window.localStorage.getItem('staytoken_pos_api');
+      if(saved){
+        this.api = saved;
+        this.message = 'API key loaded from browser storage.';
+      }
+    },
+    clearNotice(){
+      this.message = '';
+      this.error = '';
+    },
+    clearResult(){
+      this.result = null;
+    },
+    saveKey(){
+      this.clearNotice();
+      if(!this.api){
+        this.error = 'Enter the API key first.';
+        return;
+      }
+      window.localStorage.setItem('staytoken_pos_api', this.api);
+      this.message = 'API key saved. It will auto-fill next time.';
+    },
+    forgetKey(){
+      this.clearNotice();
+      window.localStorage.removeItem('staytoken_pos_api');
+      this.api = '';
+      this.message = 'Stored API key removed.';
+    },
+    async check(){
+      this.clearNotice();
+      this.clearResult();
+      if(!this.api){ this.error = 'Please enter or save the API key first.'; return; }
+      if(!this.addr){ this.error = 'Please enter the wallet address.'; return; }
+      if(!this.slug){ this.error = 'Please enter the voucher slug.'; return; }
+      this.loading = true;
+      try {
+        const url = `/pos/check?address=${encodeURIComponent(this.addr)}&voucher=${encodeURIComponent(this.slug)}`;
+        const resp = await fetch(url, { headers: { 'X-API-Key': this.api } });
+        const data = await resp.json();
+        this.result = data;
+        if(!data.ok){
+          this.error = data.error || 'Voucher not valid or no balance.';
+        }
+      } catch (err) {
+        console.error('POS check error', err);
+        this.error = 'Unable to reach the API. Please check your connection.';
+      } finally {
+        this.loading = false;
+      }
+    }
+  };
+}
+</script>
+{% endblock %}
+

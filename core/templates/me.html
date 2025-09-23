@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% block title %}My wallet - Furama StayToken{% endblock %}
+{% block content %}
+<div class="space-y-4 rounded-2xl bg-white p-5 shadow">
+  <h1 class="text-lg font-semibold">My wallet</h1>
+
+  {% if wallet %}
+    <div class="rounded-xl border p-3">
+      <div class="text-xs text-gray-500">Wallet address</div>
+      <div class="break-all font-mono text-sm">{{ wallet.address_hex }}</div>
+    </div>
+
+    <div class="space-y-2">
+      <h2 class="text-base font-semibold">Vouchers</h2>
+      {% if balances %}
+        <ul class="space-y-2">
+          {% for b in balances %}
+          <li class="flex items-center justify-between rounded-xl border p-3">
+            <div>
+              <div class="text-sm font-medium">{{ b.name }}</div>
+              <div class="text-xs text-gray-500">{{ b.slug }}</div>
+            </div>
+            <div class="text-lg font-semibold">{{ b.balance }}</div>
+          </li>
+          {% endfor %}
+        </ul>
+      {% else %}
+        <div class="text-sm text-gray-500">You do not have any vouchers yet.</div>
+      {% endif %}
+    </div>
+
+    <div class="grid grid-cols-2 gap-3 pt-2">
+      <a href="/wallet/export" class="rounded-xl bg-slate-900 py-3 text-sm font-semibold text-white text-center">Transfer / export</a>
+      <a href="/logout" class="rounded-xl border py-3 text-sm text-center">Sign out</a>
+    </div>
+  {% else %}
+    <div class="rounded-xl bg-amber-50 p-3 text-sm text-amber-800">
+      You do not have a wallet yet. Claim a voucher first (scan the QR code provided by staff).
+    </div>
+  {% endif %}
+</div>
+{% endblock %}

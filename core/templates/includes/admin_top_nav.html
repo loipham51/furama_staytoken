@@ -1,0 +1,20 @@
+<nav class="sticky top-0 z-30 -mx-4 mb-4 border-b bg-transparent px-4 pb-2 text-sm">
+  <div class="mx-auto flex max-w-md items-center justify-between gap-2">
+    <div class="admin-scroll -mx-1 flex flex-1 items-center gap-2 overflow-x-auto whitespace-nowrap px-1">
+      {% with p=request.path %}
+      <a href="/adv1/console" class="rounded-full px-3 py-1.5 {% if p == '/adv1/console' or p == '/adv1/console/' %}bg-emerald-500 text-white{% else %}bg-white/70 text-slate-600 hover:bg-white{% endif %}">Overview</a>
+      <a href="/adv1/admin/users" class="rounded-full px-3 py-1.5 {% if 'adv1/admin/users' in p %}bg-emerald-500 text-white{% else %}bg-white/70 text-slate-600 hover:bg-white{% endif %}">Users</a>
+      <a href="/adv1/admin/vouchers" class="rounded-full px-3 py-1.5 {% if 'adv1/admin/vouchers' in p %}bg-emerald-500 text-white{% else %}bg-white/70 text-slate-600 hover:bg-white{% endif %}">Vouchers</a>
+      <a href="/adv1/admin/merchants" class="rounded-full px-3 py-1.5 {% if 'adv1/admin/merchants' in p %}bg-emerald-500 text-white{% else %}bg-white/70 text-slate-600 hover:bg-white{% endif %}">Merchants</a>
+      {% endwith %}
+    </div>
+    <div class="hidden items-center gap-2 sm:flex">
+      <span class="text-xs text-slate-500">Admin</span>
+      <a href="/admin/logout/" class="rounded-full border border-emerald-100 px-3 py-1.5 text-xs text-slate-600 hover:bg-white">Logout</a>
+    </div>
+  </div>
+  <style>
+    .admin-scroll::-webkit-scrollbar{ display:none; }
+    .admin-scroll{ -ms-overflow-style:none; scrollbar-width:none; }
+  </style>
+</nav>

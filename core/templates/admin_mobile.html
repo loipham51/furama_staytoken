@@ -1,0 +1,165 @@
+{% extends "base_admin.html" %}
+{% block title %}Mobile Dashboard - StayToken{% endblock %}
+
+{% block content %}
+<div x-data="mobileDash()" x-init="init()" x-cloak class="space-y-4 pb-24">
+  <!-- Top header -->
+  <header class="rounded-2xl border bg-gradient-to-br from-slate-900 to-slate-800 p-4 text-white shadow-sm">
+    <div class="flex items-center gap-3">
+      <div class="grid h-10 w-10 place-items-center rounded-xl bg-white/10 text-xs font-semibold">APP</div>
+      <div class="min-w-0">
+        <h1 class="text-base font-semibold">Quick overview</h1>
+        <p class="text-sm/5 text-white/80">Check QR availability, on‑chain queue, and POS activity directly on the mobile dashboard.</p>
+      </div>
+    </div>
+
+    <!-- KPIs -->
+    <div class="mt-3 grid grid-cols-2 gap-2.5">
+      <template x-for="metric in metrics" :key="metric.key">
+        <div class="group rounded-2xl border border-white/10 bg-white/5 p-4 text-white backdrop-blur transition active:scale-[.99]">
+          <div class="flex items-center gap-2">
+            <span class="material-symbols-outlined text-base/none opacity-90" x-text="metric.icon"></span>
+            <p class="text-[11px] uppercase tracking-wide text-white/70" x-text="metric.label"></p>
+          </div>
+          <div class="mt-1.5 flex items-baseline gap-1.5">
+            <p class="text-2xl font-semibold" x-text="metric.value"></p>
+            <span class="text-[10px] text-white/60" x-show="metric.sublabel" x-text="metric.sublabel"></span>
+          </div>
+
+          <!-- Skeleton loader -->
+          <div x-show="loading" class="mt-2 h-2 w-24 animate-pulse rounded bg-white/20"></div>
+        </div>
+      </template>
+    </div>
+
+    <button @click="refresh" :disabled="loading" class="mt-3 inline-flex w-full items-center justify-center gap-1.5 rounded-xl border border-white/20 bg-white/10 py-2 text-[12px] font-medium text-white/90 transition active:scale-[.99] disabled:cursor-not-allowed disabled:opacity-60">
+      <span class="material-symbols-outlined text-sm" x-show="!loading">refresh</span>
+      <svg x-show="loading" class="h-3.5 w-3.5 animate-spin" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
+      </svg>
+      <span x-text="loading ? 'Refreshing…' : 'Refresh data'"></span>
+    </button>
+  </header>
+
+  <!-- QR creation -->
+  <section class="space-y-3 rounded-2xl border bg-white p-4 shadow-sm">
+    <div class="flex items-start gap-2.5">
+      <div class="grid h-9 w-9 place-items-center rounded-lg bg-slate-900/90 text-white"><span class="material-symbols-outlined text-base">qr_code_2</span></div>
+      <div class="min-w-0">
+        <h2 class="text-base font-semibold text-slate-900">Create claim QR codes</h2>
+        <p class="text-sm text-slate-500">Generate claim codes on the go. QR images will be sent to the concierge email.</p>
+      </div>
+    </div>
+
+    <form method="post" action="/adv1/console/quick/gen-qr" class="space-y-3" x-ref="qrForm" @submit="onSubmit">
+      {% csrf_token %}
+      <label class="block">
+        <span class="text-sm font-medium text-slate-700">Voucher slug</span>
+        <input name="slug" class="mt-1 w-full rounded-xl border border-slate-300 bg-white p-2.5 text-sm shadow-sm placeholder:text-slate-400 focus:border-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-900/10" placeholder="spa-30off-2025" required pattern="^[a-z0-9-]{3,80}$" title="Lowercase letters, numbers, and dashes only (3–80 chars)"/>
+        <p class="mt-1 text-[11px] text-slate-500">Tip: use <code class="rounded bg-slate-100 px-1 py-0.5">brand-offer-year</code> format.</p>
+      </label>
+
+      <label class="block">
+        <span class="text-sm font-medium text-slate-700">Quantity</span>
+        <input name="count" type="number" min="1" max="1000" value="10" class="mt-1 w-full rounded-xl border border-slate-300 bg-white p-2.5 text-sm shadow-sm focus:border-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-900/10"/>
+      </label>
+
+      <button class="w-full rounded-xl bg-slate-900 py-2.5 text-sm font-semibold text-white shadow-sm transition active:scale-[.99] disabled:cursor-not-allowed disabled:opacity-60" :disabled="submitting">
+        <span class="inline-flex items-center gap-1.5">
+          <svg x-show="submitting" class="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
+          </svg>
+          <span x-text="submitting ? 'Generating…' : 'Generate QR codes'"></span>
+        </span>
+      </button>
+    </form>
+  </section>
+
+  <!-- Toasts -->
+  <div aria-live="polite" class="fixed inset-x-0 bottom-16 z-50 flex justify-center px-4 sm:hidden">
+    <template x-if="toast.show">
+      <div class="max-w-sm rounded-xl border bg-white p-3 text-sm text-slate-800 shadow-lg">
+        <div class="flex items-start gap-2">
+          <span class="material-symbols-outlined text-base" :class="toast.type === 'error' ? 'text-red-600' : 'text-emerald-600'" x-text="toast.type === 'error' ? 'error' : 'check_circle'"></span>
+          <p x-text="toast.message"></p>
+        </div>
+      </div>
+    </template>
+  </div>
+</div>
+{% endblock %}
+
+{% block bottom_nav %}
+<nav class="fixed inset-x-0 bottom-0 z-40 border-t bg-white/95 pb-[calc(env(safe-area-inset-bottom)+0.25rem)] backdrop-blur supports-[backdrop-filter]:bg-white/70 sm:hidden" role="navigation" aria-label="Primary">
+  <div class="mx-auto grid max-w-md grid-cols-4 text-[11px]">
+    <a href="/adv1/console" aria-label="Dashboard" class="flex flex-col items-center gap-0.5 px-2 py-2 {% if 'adv1/console' in request.path and not 'adv1/console/scan' in request.path %}text-slate-900{% else %}text-slate-500{% endif %}">
+      <span class="material-symbols-outlined text-base">dashboard</span>
+      <span>Dashboard</span>
+    </a>
+    <a href="/adv1/console/scan" aria-label="QR scan" class="flex flex-col items-center gap-0.5 px-2 py-2 {% if 'adv1/console/scan' in request.path %}text-slate-900{% else %}text-slate-500{% endif %}">
+      <span class="material-symbols-outlined text-base">qr_code_scanner</span>
+      <span>QR scan</span>
+    </a>
+    <a href="/adv1/console/stats" aria-label="Analytics" class="flex flex-col items-center gap-0.5 px-2 py-2 {% if 'adv1/console/stats' in request.path %}text-slate-900{% else %}text-slate-500{% endif %}">
+      <span class="material-symbols-outlined text-base">insights</span>
+      <span>Analytics</span>
+    </a>
+    <a href="/adv1/pos/check" aria-label="POS" class="flex flex-col items-center gap-0.5 px-2 py-2 {% if '/adv1/pos/' in request.path %}text-slate-900{% else %}text-slate-500{% endif %}">
+      <span class="material-symbols-outlined text-base">storefront</span>
+      <span>POS</span>
+    </a>
+  </div>
+</nav>
+{% endblock %}
+
+{% block extra_scripts %}
+{% include "includes/admin_console_js.html" %}
+<script>
+function mobileDash(){
+  return {
+    loading: true,
+    submitting: false,
+    toast: { show: false, message: '', type: 'success' },
+    metrics: [
+      { key: 'users_total',       label: 'Users',              value: '-', icon: 'groups' },
+      { key: 'voucher_campaigns', label: 'Voucher campaigns',  value: '-', icon: 'confirmation_number' },
+      { key: 'wallet_active',     label: 'Active wallets',     value: '-', icon: 'account_balance_wallet' },
+      { key: 'tx_today',          label: 'On-chain today',     value: '-', icon: 'bolt' },
+    ],
+    async init(){
+      await this.fetchStats();
+    },
+    async refresh(){
+      this.loading = true;
+      await this.fetchStats();
+    },
+    async fetchStats(){
+      try {
+        const res = await fetch('/adv1/console/stats.json', { headers: { 'Accept': 'application/json' } });
+        if (!res.ok) throw new Error('Network error');
+        const data = await res.json();
+        const lookup = (data.stats || []).reduce((acc, item) => { acc[item.key] = item.value; return acc; }, {});
+        this.metrics = this.metrics.map(metric => ({ ...metric, value: lookup[metric.key] ?? metric.value }));
+      } catch (err) {
+        this.showToast('Unable to load dashboard data. Pull to refresh or try again.', 'error');
+        console.error('Unable to load mobile dashboard data', err);
+      } finally {
+        this.loading = false;
+      }
+    },
+    onSubmit(e){
+      if(this.submitting){ e.preventDefault(); return; }
+      this.submitting = true;
+      // Give user immediate feedback; allow normal form POST
+      setTimeout(() => { this.submitting = false; }, 12000);
+    },
+    showToast(message, type='success'){
+      this.toast = { show: true, message, type };
+      setTimeout(() => { this.toast.show = false; }, 3500);
+    }
+  }
+}
+</script>
+{% endblock %}

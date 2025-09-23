@@ -1,0 +1,106 @@
+{% extends "base.html" %}
+{% block title %}Wallet management - Furama StayToken{% endblock %}
+{% block content %}
+<div x-data="walletExport()" class="space-y-4 rounded-2xl bg-white p-5 shadow">
+  <div class="flex items-start gap-3">
+    <div class="grid h-10 w-10 place-items-center rounded-xl bg-black text-lg font-semibold text-white">WL</div>
+    <div>
+      <h1 class="text-lg font-semibold">Wallet management</h1>
+      <p class="text-sm text-gray-600">Transfer vouchers to a personal wallet or export keys when policies allow.</p>
+    </div>
+  </div>
+
+  {% if export_allowed %}
+    <div class="rounded-xl bg-emerald-50 p-3 text-sm text-emerald-700">
+      Exporting private keys is currently permitted. Please operate in a secure area.
+    </div>
+  {% else %}
+    <div class="rounded-xl bg-amber-50 p-3 text-sm text-amber-800">
+      {{ note|default:"Only transfers to personal wallets are allowed at the moment (private key export disabled)." }}
+    </div>
+  {% endif %}
+
+  <div class="grid grid-cols-2 overflow-hidden rounded-xl border text-sm">
+    <button :class="tab==='transfer' ? 'bg-slate-900 text-white' : 'bg-white text-gray-700'" class="py-2" @click="tab='transfer'">Transfer voucher</button>
+    <button :class="tab==='export' ? 'bg-slate-900 text-white' : 'bg-white text-gray-700'" class="py-2" @click="tab='export'">Export key</button>
+  </div>
+
+  <div x-show="tab==='transfer'" x-cloak class="space-y-3">
+    <label class="block">
+      <span class="text-sm font-medium">Destination wallet address (0x...)</span>
+      <input x-model="to" class="mt-1 w-full rounded-xl border p-3 font-mono" placeholder="0x...">
+    </label>
+    <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+      <label class="block">
+        <span class="text-sm font-medium">Voucher slug</span>
+        <input x-model="slug" class="mt-1 w-full rounded-xl border p-3" placeholder="spa-30off-2025">
+      </label>
+      <label class="block">
+        <span class="text-sm font-medium">Quantity</span>
+        <input x-model.number="amount" type="number" min="1" class="mt-1 w-full rounded-xl border p-3" value="1">
+      </label>
+    </div>
+    <button @click="sendTransfer" class="flex w-full items-center justify-center gap-2 rounded-xl bg-slate-900 py-3 text-sm font-medium text-white">
+      <span x-show="!sending">Transfer voucher</span>
+      <svg x-show="sending" class="h-5 w-5 animate-spin" viewBox="0 0 24 24" fill="none">
+        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
+        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
+      </svg>
+    </button>
+    <p class="text-xs text-gray-500">Transfers are queued on-chain securely. Processing may take a short while.</p>
+  </div>
+
+  <div x-show="tab==='export'" x-cloak class="space-y-3">
+    {% if export_allowed %}
+      <div class="rounded-xl border p-3 text-sm">
+        <p>Exporting the private key reveals the custodial wallet secret. Make sure you back it up securely.</p>
+        <button class="mt-3 w-full rounded-xl bg-rose-600 py-3 text-sm font-semibold text-white">Export private key</button>
+      </div>
+    {% else %}
+      <div class="rounded-xl border p-3 text-sm text-gray-700">
+        Private key export is <strong>currently disabled</strong>. Please use the <em>Transfer voucher</em> tab instead.
+      </div>
+    {% endif %}
+  </div>
+</div>
+
+<script>
+function walletExport(){
+  return {
+    tab: 'transfer',
+    to: '',
+    slug: 'spa-30off-2025',
+    amount: 1,
+    sending: false,
+    async sendTransfer(){
+      const to = (this.to || '').trim();
+      const slug = (this.slug || '').trim();
+      const amount = Number(this.amount || 1);
+      if(!to || !to.startsWith('0x') || to.length < 10){ alert('Please enter a valid destination wallet address.'); return; }
+      if(!slug){ alert('Please enter the voucher slug.'); return; }
+      if(amount <= 0){ alert('Quantity must be at least 1.'); return; }
+      this.sending = true;
+      try {
+        const fromAddress = (document.querySelector('[data-wallet-addr]')?.getAttribute('data-wallet-addr')) || localStorage.getItem('custodial_address') || '';
+        const res = await fetch('/wallet/transfer', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ to_address: to, voucher: slug, from_address: fromAddress, amount })
+        });
+        const json = await res.json();
+        if(json.ok){
+          alert('Transfer queued. Please allow a short processing time.');
+        } else {
+          alert('Error: ' + (json.error || 'Unknown error'));
+        }
+      } catch (err) {
+        alert('Network error. Please try again.');
+      } finally {
+        this.sending = false;
+      }
+    }
+  };
+}
+</script>
+{% endblock %}
+

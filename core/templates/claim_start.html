@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block title %}Claim voucher - Furama StayToken{% endblock %}
+{% block content %}
+<div class="space-y-4 rounded-2xl bg-white p-5 shadow">
+  <div class="flex items-start gap-3">
+    <div class="grid h-10 w-10 place-items-center rounded-xl bg-black text-lg text-white font-semibold">CV</div>
+    <div>
+      <h1 class="text-lg font-semibold">Claim voucher</h1>
+      <p class="text-sm text-gray-600">Đường dẫn claim không khả dụng.</p>
+    </div>
+  </div>
+
+  {% if error %}
+    <div class="rounded-xl bg-rose-50 p-3 text-sm text-rose-700">{{ error }}</div>
+  {% endif %}
+  <a href="/" class="inline-block rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white">Về trang chủ</a>
+</div>
+{% endblock %}

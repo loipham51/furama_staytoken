@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block title %}Sign in - Furama StayToken{% endblock %}
+{% block content %}
+<div class="space-y-4 rounded-2xl bg-white p-5 shadow">
+  <h1 class="text-lg font-semibold">Sign in to manage your vouchers</h1>
+  {% if error %}<div class="rounded-xl bg-rose-50 p-3 text-sm text-rose-700">{{ error }}</div>{% endif %}
+  {% if form and form.non_field_errors %}
+    <div class="rounded-xl bg-rose-50 p-3 text-sm text-rose-700">
+      {{ form.non_field_errors|join:', ' }}
+    </div>
+  {% endif %}
+  {% if message %}<div class="rounded-xl bg-emerald-50 p-3 text-sm text-emerald-700">{{ message }}</div>{% endif %}
+  <form method="post" action="/auth/start" class="space-y-3">
+    {% csrf_token %}
+    <label class="block">
+      <span class="text-sm">Email</span>
+      {% if form %}
+        {% with email_value=form.email.value|default:'' %}
+          <input name="email" type="email" value="{{ email_value }}" class="mt-1 w-full rounded-xl border p-3" placeholder="you@example.com" required>
+        {% endwith %}
+        {% if form.errors.email %}
+          <p class="mt-1 text-xs text-rose-600">{{ form.errors.email.0 }}</p>
+        {% endif %}
+      {% else %}
+        <input name="email" type="email" value="{{ email|default:'' }}" class="mt-1 w-full rounded-xl border p-3" placeholder="you@example.com" required>
+      {% endif %}
+    </label>
+    {% if form %}
+      {% if form.next %}
+        {{ form.next.as_hidden }}
+      {% else %}
+        <input type="hidden" name="next" value="{{ next|default:'' }}">
+      {% endif %}
+    {% else %}
+      <input type="hidden" name="next" value="{{ next|default:'' }}">
+    {% endif %}
+    <button class="w-full rounded-xl bg-slate-900 py-3 text-sm font-semibold text-white">Send OTP code</button>
+  </form>
+  <p class="text-xs text-gray-500">We will send a 6-digit OTP that expires in 10 minutes.</p>
+</div>
+{% endblock %}
