@@ -1,0 +1,8 @@
+Django>=5.2,<5.3
+psycopg[binary]>=3.1
+python-dotenv>=1.0
+web3>=6,<7
+eth-account>=0.9,<0.11
+qrcode[pil]>=7.4
+cryptography>=42
+reportlab>=4.0
