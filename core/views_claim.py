@@ -2,7 +2,7 @@ from urllib.parse import urlencode
 
 from django.conf import settings
 from django.db import connection
-from django.http import Http404, HttpResponseRedirect
+from django.http import Http404, HttpResponseRedirect, JsonResponse
 from django.shortcuts import render
 from django.urls import reverse
 from django.utils import timezone
@@ -10,7 +10,7 @@ from django.views.decorators.http import require_http_methods
 
 from .auth_utils import get_current_user
 from .forms import ClaimProfileForm, OTPStartForm
-from .models import QRClaim
+from .models import QRClaim, VoucherType
 from .services import (
     enqueue_onchain,
     finish_qr_claim,
@@ -18,6 +18,8 @@ from .services import (
     issue_voucher,
     log_claim_request,
     rate_limit_ok,
+    mint_erc1155_now,
+    can_user_claim,
 )
 
 
@@ -64,11 +66,47 @@ def _process_claim(request, qr: QRClaim, *, user):
             status=410,
         )
 
-    wallet = issue_voucher(user, qr.voucher_type, amount=1)
-    enqueue_onchain(kind="mint1155", voucher=qr.voucher_type, to_wallet=wallet, amount=1)
+    # Enforce per-user limit
+    ok, claimed, limit = can_user_claim(user, qr.voucher_type, amount=1)
+    if not ok:
+        log_claim_request(qr, client_ip, ua, email, phone, consent, "limit_reached")
+        return render(
+            request,
+            "claim_start.html",
+            {
+                "code": qr.code,
+                "error": f"Bạn đã đạt giới hạn claim ({claimed}/{limit}).",
+            },
+            status=403,
+        )
 
-    finish_qr_claim(qr, user)
-    log_claim_request(qr, client_ip, ua, email, phone, consent, "ok")
+    # Issue voucher and mint immediately
+    from django.db import transaction
+    
+    try:
+        with transaction.atomic():
+            wallet = issue_voucher(user, qr.voucher_type, amount=1)
+            
+            # Mint immediately instead of queuing
+            tx_hash = mint_erc1155_now(wallet, qr.voucher_type, amount=1, wait=True)
+            
+            finish_qr_claim(qr, user)
+            log_claim_request(qr, client_ip, ua, email, phone, consent, "ok")
+            
+            # Store transaction hash in session for success page
+            request.session['last_claim_tx_hash'] = tx_hash
+            
+    except Exception as exc:
+        log_claim_request(qr, client_ip, ua, email, phone, consent, f"mint_failed: {str(exc)}")
+        return render(
+            request,
+            "claim_start.html",
+            {
+                "code": qr.code,
+                "error": f"Không thể mint voucher: {str(exc)}",
+            },
+            status=500,
+        )
 
     return HttpResponseRedirect(reverse("claim_done", args=[qr.code]))
 
@@ -216,6 +254,55 @@ def claim_submit(request, code: str):
 
     return _process_claim(request, qr, user=user)
 
+@require_http_methods(["POST"])  # JSON API: claim by slug and mint now
+def claim_mint_now(request, slug: str):
+    user = get_current_user(request)
+    if not user:
+        return JsonResponse({"ok": False, "error": "AUTH_REQUIRED"}, status=401)
+
+    try:
+        voucher = VoucherType.objects.get(slug=slug, active=True)
+    except VoucherType.DoesNotExist:
+        return JsonResponse({"ok": False, "error": "VOUCHER_NOT_FOUND"}, status=404)
+
+    ok, claimed, limit = can_user_claim(user, voucher, amount=1)
+    if not ok:
+        return JsonResponse({"ok": False, "error": "LIMIT_REACHED", "claimed": claimed, "limit": limit}, status=403)
+
+    # Issue off-chain balance and mint on-chain in one flow
+    from django.db import transaction
+    
+    # Validate config before attempting mint
+    if not settings.ST_RPC_URL or not settings.ST_ERC1155_SIGNER or not settings.ST_DEFAULT_CONTRACT:
+        return JsonResponse({"ok": False, "error": "CONFIG_INVALID", "detail": "Blockchain configuration incomplete"}, status=500)
+    
+    try:
+        with transaction.atomic():
+            wallet = issue_voucher(user, voucher, amount=1)
+            
+            # Debug info
+            contract_addr = voucher.erc1155_contract or settings.ST_DEFAULT_CONTRACT
+            token_id = int(voucher.token_id)
+            wallet_addr = wallet.address_hex
+            
+            print(f"DEBUG: contract={contract_addr}, token_id={token_id}, wallet={wallet_addr}")
+            print(f"DEBUG: signer_key starts with: {settings.ST_ERC1155_SIGNER[:10]}...")
+            
+            tx_hash = mint_erc1155_now(wallet, voucher, amount=1, wait=True)
+    except Exception as exc:
+        import traceback
+        print(f"DEBUG: Full error: {exc}")
+        print(f"DEBUG: Traceback: {traceback.format_exc()}")
+        return JsonResponse({"ok": False, "error": "MINT_FAILED", "detail": str(exc)}, status=500)
+
+    return JsonResponse({
+        "ok": True,
+        "wallet_address": wallet.address_hex,
+        "tx_hash": tx_hash,
+        "explorer": (settings.ST_EXPLORER_TX_PREFIX + tx_hash) if settings.ST_EXPLORER_TX_PREFIX else None,
+    })
+
+
 def claim_done(request, code: str):
     try:
         qr = QRClaim.objects.get(code=code)
@@ -226,10 +313,21 @@ def claim_done(request, code: str):
     if user:
         from .models import Wallet
         wallet = Wallet.objects.filter(user=user, chain_id=settings.ST_CHAIN_ID).first()
-    # Tạo URL QR ví để hiển thị trong template claim_success.html (bạn đã có template)
+    
+    # Get transaction hash from session
+    tx_hash = request.session.pop('last_claim_tx_hash', None)
+    explorer_url = None
+    if tx_hash and settings.ST_EXPLORER_TX_PREFIX:
+        explorer_url = settings.ST_EXPLORER_TX_PREFIX + tx_hash
+    
+    # Tạo URL QR ví để hiển thị trong template claim_success.html
     wallet_addr = wallet.address_hex if wallet else ""
     qr_png_url = reverse("qr_wallet_png", kwargs={"addr": wallet_addr[2:]}) if wallet_addr else ""
+    
     return render(request, "claim_success.html", {
         "wallet_address": wallet_addr,
-        "qr_png_url": qr_png_url
+        "qr_png_url": qr_png_url,
+        "tx_hash": tx_hash,
+        "explorer_url": explorer_url,
+        "voucher_name": qr.voucher_type.name if qr.voucher_type else "StayToken voucher"
     })

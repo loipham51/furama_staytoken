@@ -15,8 +15,10 @@ from django.utils.crypto import get_random_string
 from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.decorators.http import require_http_methods
 
-from .forms import OTPStartForm
+from .forms import OTPStartForm, ClaimProfileForm
 from .models import AppUser
+from .auth_utils import get_current_user
+from .services import get_or_create_wallet
 
 OTP_TTL_MINUTES = 10
 OTP_LENGTH = 6
@@ -191,6 +193,78 @@ def auth_verify(request):
 
     request.session["user_id"] = str(user.id)
     request.session.set_expiry(60 * 30)
+    # If profile incomplete, force completing profile first
+    name = (user.full_name or "").strip().lower()
+    placeholder = name.startswith("khach furama") or name.startswith("guest furama")
+    needs_profile = (not name) or placeholder or not (user.phone and user.phone.strip())
+    if needs_profile:
+        profile_url = reverse("auth_profile")
+        if safe_next:
+            return redirect(f"{profile_url}?next={safe_next}")
+        return redirect(profile_url)
+
+    # Ensure wallet exists for this user on default chain
+    try:
+        get_or_create_wallet(user, chain_id=settings.ST_CHAIN_ID)
+    except Exception:
+        pass
+
+    return redirect(safe_next or reverse("me"))
+
+
+@require_http_methods(["GET", "POST"])
+def auth_profile(request):
+    user = get_current_user(request)
+    if not user:
+        return redirect(reverse("auth_start"))
+
+    safe_next = (request.GET.get("next") or request.POST.get("next")) or None
+
+    if request.method == "GET":
+        form = ClaimProfileForm(initial={
+            "full_name": "",  # Không tự động điền tên, để khách tự nhập
+            "phone": user.phone or "",
+        })
+        return render(request, "auth_profile.html", {"form": form, "next": safe_next})
+
+    form = ClaimProfileForm(request.POST)
+    if not form.is_valid():
+        return render(request, "auth_profile.html", {"form": form, "next": safe_next}, status=400)
+
+    full_name = form.cleaned_data["full_name"].strip()
+    phone = form.cleaned_data["phone"].strip()
+
+    # Enforce unique phone (normalized)
+    with connection.cursor() as cur:
+        cur.execute("SELECT id FROM app_user WHERE phone = %s AND id <> %s", [phone, str(user.id)])
+        exists = cur.fetchone()
+    if exists:
+        form.add_error("phone", "Số điện thoại đã được sử dụng cho tài khoản khác.")
+        return render(request, "auth_profile.html", {"form": form, "next": safe_next}, status=400)
+
+    with connection.cursor() as cur:
+        cur.execute(
+            """
+            UPDATE app_user
+            SET full_name=%s, phone=%s, updated_at=NOW()
+            WHERE id=%s
+            """,
+            [full_name, phone, str(user.id)],
+        )
+
+    # Update session-backed user cache if any
+    try:
+        user.full_name = full_name
+        user.phone = phone
+    except Exception:
+        pass
+
+    # Ensure wallet exists for this user on default chain
+    try:
+        get_or_create_wallet(user, chain_id=settings.ST_CHAIN_ID)
+    except Exception:
+        pass
+
     return redirect(safe_next or reverse("me"))
 
 

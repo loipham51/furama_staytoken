@@ -2,9 +2,9 @@
 {% block title %}Voucher claimed - Furama StayToken{% endblock %}
 {% block content %}
 <div class="space-y-5 rounded-2xl bg-white p-6 text-center shadow">
-  <div class="mx-auto grid h-12 w-12 place-content-center rounded-2xl bg-emerald-600 text-2xl text-white font-semibold">OK</div>
-  <h2 class="text-xl font-semibold">Voucher claimed</h2>
-  <p class="text-sm text-gray-600">Show the QR code below to POS staff to redeem your benefit.</p>
+  <div class="mx-auto grid h-12 w-12 place-content-center rounded-2xl bg-emerald-600 text-2xl text-white font-semibold">✓</div>
+  <h2 class="text-xl font-semibold">Voucher claimed successfully!</h2>
+  <p class="text-sm text-gray-600">Your {{ voucher_name }} has been minted on-chain and stored in your custodial wallet.</p>
 
   {% if qr_png_url %}
     <img src="{{ qr_png_url }}" alt="Wallet QR" class="mx-auto h-48 w-48 rounded-xl border">
@@ -15,6 +15,15 @@
   {% if wallet_address %}
     <div class="mx-auto max-w-xs break-all rounded-xl bg-gray-50 px-3 py-2 text-xs text-gray-600">
       Custodial wallet: <span class="font-mono">{{ wallet_address }}</span>
+    </div>
+  {% endif %}
+
+  {% if tx_hash %}
+    <div class="mx-auto max-w-xs break-all rounded-xl bg-blue-50 px-3 py-2 text-xs text-blue-600">
+      Transaction: <span class="font-mono">{{ tx_hash }}</span>
+      {% if explorer_url %}
+        <br><a href="{{ explorer_url }}" target="_blank" class="text-blue-500 underline">View on explorer</a>
+      {% endif %}
     </div>
   {% endif %}
 

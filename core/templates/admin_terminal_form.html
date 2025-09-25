@@ -1,0 +1,108 @@
+{% extends "base_admin.html" %}
+{% block title %}{% if mode == 'edit' %}Edit Terminal{% else %}New Terminal{% endif %} - StayToken{% endblock %}
+{% block content %}
+<div class="mx-auto max-w-2xl px-4 py-6">
+  <!-- Header -->
+  <div class="mb-6">
+    <div class="flex items-center gap-3">
+      <div class="flex h-10 w-10 items-center justify-center rounded-xl bg-purple-600">
+        <svg class="h-5 w-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path>
+        </svg>
+      </div>
+      <div>
+        <h1 class="text-xl font-bold text-slate-900">{% if mode == 'edit' %}Edit Terminal{% else %}Create New Terminal{% endif %}</h1>
+        <p class="text-sm text-slate-600">Configure POS terminal for voucher redemption</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Form -->
+  <div class="bg-white rounded-xl border border-slate-200 shadow-sm">
+    <form method="post" class="p-5">
+      {% csrf_token %}
+      {% if form.non_field_errors %}
+      <div class="mb-4 rounded-lg border border-red-200 bg-red-50 p-3">
+        <div class="flex items-start gap-2">
+          <svg class="h-4 w-4 shrink-0 text-red-500 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"></path>
+          </svg>
+          <div class="text-sm text-red-700">{{ form.non_field_errors }}</div>
+        </div>
+      </div>
+      {% endif %}
+
+      <!-- Basic Information -->
+      <div class="space-y-4">
+        <div class="space-y-2">
+          <label for="{{ form.merchant.id_for_label }}" class="block text-sm font-semibold text-slate-700">Merchant</label>
+          {{ form.merchant }}
+          {% if form.merchant.errors %}<p class="text-xs text-red-600 mt-1">{{ form.merchant.errors|striptags }}</p>{% endif %}
+        </div>
+        
+        <div class="space-y-2">
+          <label for="{{ form.code.id_for_label }}" class="block text-sm font-semibold text-slate-700">Terminal Code</label>
+          {{ form.code }}
+          {% if form.code.errors %}<p class="text-xs text-red-600 mt-1">{{ form.code.errors|striptags }}</p>{% endif %}
+        </div>
+      </div>
+
+      <!-- API Key Info -->
+      {% if mode == 'edit' and obj.api_key %}
+      <div class="mt-6 rounded-lg border border-slate-200 bg-slate-50 p-4">
+        <div class="flex items-center gap-2 mb-2">
+          <svg class="h-4 w-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"></path>
+          </svg>
+          <span class="text-sm font-semibold text-slate-700">API Key</span>
+        </div>
+        <div class="flex items-center gap-2">
+          <code class="flex-1 text-sm font-mono text-slate-600 bg-white px-3 py-2 rounded border">{{ obj.api_key }}</code>
+          <button type="button" onclick="copyToClipboard('{{ obj.api_key }}')" class="text-xs text-blue-600 hover:text-blue-800 px-2 py-1 rounded border border-blue-200 hover:bg-blue-50">
+            Copy
+          </button>
+        </div>
+        <p class="text-xs text-slate-500 mt-2">Use this API key to authenticate terminal requests</p>
+      </div>
+      {% endif %}
+
+      <!-- Status -->
+      <div class="mt-6">
+        <div class="flex items-center gap-3 rounded-lg border border-slate-200 bg-slate-50 p-3">
+          {{ form.active }}
+          <div>
+            <label for="{{ form.active.id_for_label }}" class="text-sm font-semibold text-slate-700 cursor-pointer">Active Terminal</label>
+            <p class="text-xs text-slate-500">Enable this terminal to process voucher redemptions</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Actions -->
+      <div class="mt-6 pt-4 border-t border-slate-200">
+        <div class="flex flex-col gap-3 sm:flex-row sm:justify-end">
+          <a href="/adv1/admin/terminals" class="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-slate-500 focus:ring-offset-2">
+            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+            </svg>
+            Cancel
+          </a>
+          <button type="submit" class="inline-flex items-center justify-center gap-2 rounded-lg bg-purple-600 px-6 py-2 text-sm font-semibold text-white shadow-sm hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2">
+            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+            </svg>
+            {% if mode == 'edit' %}Update Terminal{% else %}Create Terminal{% endif %}
+          </button>
+        </div>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+function copyToClipboard(text) {
+  navigator.clipboard.writeText(text).then(function() {
+    alert('API key copied to clipboard!');
+  });
+}
+</script>
+{% endblock %}

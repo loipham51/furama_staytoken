@@ -1,6 +1,8 @@
 import csv
 import datetime
 import io
+import os
+from io import BytesIO
 
 from django.conf import settings
 from django.core import management
@@ -9,6 +11,12 @@ from django.http import HttpResponse, HttpResponseBadRequest, JsonResponse
 from django.shortcuts import redirect, render
 from django.utils import timezone
 from django.views.decorators.http import require_http_methods
+from reportlab.lib.pagesizes import A4
+from reportlab.lib.units import inch
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Image, Table, TableStyle
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib import colors
+from reportlab.lib.enums import TA_CENTER, TA_LEFT
 
 from .auth_utils import admin_required
 from .models import (
@@ -18,10 +26,12 @@ from .models import (
     POSRedemption,
     Wallet,
     POSTerminal,
+    Merchant,
     OnchainTx,
     VoucherTransferLog,
     OnchainStatus,
 )
+from .forms import VoucherTypeForm, MerchantForm, POSTerminalForm
 from django.core.paginator import Paginator
 from django.db import models
 from django.db.models import Count, Sum, Q, Max
@@ -49,6 +59,13 @@ def admin_dashboard(request):
         .select_related('voucher_type', 'to_wallet', 'to_wallet__user')
         .filter(reason='claim')
         .order_by('-created_at')[:15]
+    )
+
+    # Recent POS redemptions (both reserved and committed)
+    recent_redeem_qs = (
+        POSRedemption.objects
+        .select_related('voucher_type', 'wallet', 'wallet__user')
+        .order_by('-reserved_at')[:20]
     )
 
     def wallet_info(wallet: Wallet | None) -> dict:
@@ -87,15 +104,32 @@ def admin_dashboard(request):
             "wallet": wallet,
         }
 
+    def redeem_payload(rec: POSRedemption) -> dict:
+        wallet = wallet_info(getattr(rec, "wallet", None))
+        voucher = getattr(rec, "voucher_type", None)
+        voucher_label = voucher.name if voucher and voucher.name else getattr(voucher, "slug", "—")
+        return {
+            "reserved_at": rec.reserved_at,
+            "committed_at": rec.committed_at,
+            "status": rec.status,
+            "amount": rec.amount,
+            "voucher": voucher_label,
+            "wallet": wallet,
+            "terminal": rec.pos_terminal or "—",
+        }
+
     context = {
         "console_msg": msg,
         "pending_txs": [tx_payload(tx) for tx in pending_qs],
         "recent_txs": [tx_payload(tx) for tx in recent_qs],
         "claim_logs": [claim_payload(log) for log in claims_qs],
+        "recent_redeems": [redeem_payload(r) for r in recent_redeem_qs],
         "contract_address": settings.ST_DEFAULT_CONTRACT,
         "rpc_url": settings.ST_RPC_URL,
         "provider": settings.ST_PROVIDER,
         "chain_id": settings.ST_CHAIN_ID,
+        "explorer_tx_prefix": getattr(settings, "ST_EXPLORER_TX_PREFIX", ""),
+        "explorer_addr_prefix": getattr(settings, "ST_EXPLORER_ADDR_PREFIX", ""),
     }
     return render(request, "admin_console.html", context)
 
@@ -190,7 +224,299 @@ def admin_vouchers_page(request):
 
 
 @admin_required
+def admin_voucher_new(request):
+    if request.method == 'POST':
+        form = VoucherTypeForm(request.POST)
+        if form.is_valid():
+            voucher = form.save(commit=False)
+            # Auto-generate slug from name
+            import re
+            from django.utils.text import slugify
+            from django.utils import timezone
+            
+            name = voucher.name
+            base_slug = slugify(name)
+            # Ensure uniqueness
+            counter = 1
+            slug = base_slug
+            while VoucherType.objects.filter(slug=slug).exists():
+                slug = f"{base_slug}-{counter}"
+                counter += 1
+            voucher.slug = slug
+            
+            # Auto-set contract and token_id from settings
+            voucher.erc1155_contract = settings.ST_DEFAULT_CONTRACT
+            # Generate token_id based on existing vouchers
+            last_voucher = VoucherType.objects.order_by('-token_id').first()
+            voucher.token_id = (last_voucher.token_id + 1) if last_voucher else 1
+            
+            # Set timestamps
+            now = timezone.now()
+            voucher.created_at = now
+            voucher.updated_at = now
+            
+            voucher.save()
+            request.session['console_msg'] = 'Voucher created.'
+            return redirect('/adv1/admin/vouchers')
+    else:
+        form = VoucherTypeForm()
+    return render(request, 'admin_voucher_form.html', {'form': form, 'mode': 'create'})
+
+
+@admin_required
+def admin_voucher_edit(request, slug: str):
+    try:
+        obj = VoucherType.objects.get(slug=slug)
+    except VoucherType.DoesNotExist:
+        return redirect('/adv1/admin/vouchers')
+    if request.method == 'POST':
+        form = VoucherTypeForm(request.POST, instance=obj)
+        if form.is_valid():
+            voucher = form.save(commit=False)
+            # Update timestamp
+            from django.utils import timezone
+            voucher.updated_at = timezone.now()
+            voucher.save()
+            request.session['console_msg'] = 'Voucher updated.'
+            return redirect('/adv1/admin/vouchers')
+    else:
+        form = VoucherTypeForm(instance=obj)
+    return render(request, 'admin_voucher_form.html', {'form': form, 'mode': 'edit', 'obj': obj})
+
+
+@admin_required
+@require_http_methods(["POST"]) 
+def admin_voucher_delete(request, slug: str):
+    try:
+        obj = VoucherType.objects.get(slug=slug)
+        obj.delete()
+        request.session['console_msg'] = 'Voucher deleted.'
+    except VoucherType.DoesNotExist:
+        pass
+    return redirect('/adv1/admin/vouchers')
+
+
+@admin_required
+@require_http_methods(["POST"])
+def admin_voucher_export_qr_pdf(request):
+    """Export voucher QR codes as PDF for printing."""
+    voucher_slugs = request.POST.getlist('vouchers')
+    if not voucher_slugs:
+        return HttpResponseBadRequest("No vouchers selected")
+    
+    # Get voucher types
+    vouchers = VoucherType.objects.filter(slug__in=voucher_slugs, active=True)
+    if not vouchers.exists():
+        return HttpResponseBadRequest("No active vouchers found")
+    
+    # Create PDF response
+    response = HttpResponse(content_type='application/pdf')
+    response['Content-Disposition'] = f'attachment; filename="voucher_qr_codes_{timezone.now().strftime("%Y%m%d_%H%M%S")}.pdf"'
+    
+    # Create PDF document
+    buffer = BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=A4, topMargin=0.5*inch, bottomMargin=0.5*inch)
+    
+    # Styles
+    styles = getSampleStyleSheet()
+    title_style = ParagraphStyle(
+        'CustomTitle',
+        parent=styles['Heading1'],
+        fontSize=18,
+        spaceAfter=30,
+        alignment=TA_CENTER,
+        textColor=colors.darkgreen
+    )
+    
+    voucher_style = ParagraphStyle(
+        'VoucherTitle',
+        parent=styles['Heading2'],
+        fontSize=14,
+        spaceAfter=10,
+        alignment=TA_CENTER,
+        textColor=colors.darkblue
+    )
+    
+    # Build content
+    story = []
+    
+    # Title
+    story.append(Paragraph("Furama Resort - Voucher QR Codes", title_style))
+    story.append(Spacer(1, 20))
+    
+    # Generate QR codes for each voucher
+    from .qrcode_utils import render_qr_png
+    from .models import QRClaim
+    
+    for voucher in vouchers:
+        # Create a sample QR claim for this voucher
+        # In a real implementation, you might want to generate multiple QR codes per voucher
+        qr_data = f"voucher:{voucher.slug}:claim"
+        
+        # Generate QR code image
+        qr_png = render_qr_png(qr_data)
+        
+        # Use BytesIO instead of temporary file to avoid Windows path issues
+        qr_image_buffer = BytesIO(qr_png)
+        
+        try:
+            # Add voucher title
+            story.append(Paragraph(f"{voucher.name}", voucher_style))
+            story.append(Spacer(1, 10))
+            
+            # Add QR code image using BytesIO
+            qr_image = Image(qr_image_buffer, width=2*inch, height=2*inch)
+            qr_image.hAlign = 'CENTER'
+            story.append(qr_image)
+            story.append(Spacer(1, 10))
+            
+            # Add voucher details
+            details = [
+                ['Voucher Code:', voucher.slug],
+                ['Description:', voucher.description or 'StayToken reward'],
+                ['Token ID:', str(voucher.token_id)],
+                ['Status:', 'Active' if voucher.active else 'Inactive'],
+            ]
+            
+            details_table = Table(details, colWidths=[1.5*inch, 3*inch])
+            details_table.setStyle(TableStyle([
+                ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+                ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
+                ('FONTNAME', (1, 0), (1, -1), 'Helvetica'),
+                ('FONTSIZE', (0, 0), (-1, -1), 10),
+                ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+                ('TOPPADDING', (0, 0), (-1, -1), 6),
+            ]))
+            
+            story.append(details_table)
+            story.append(Spacer(1, 20))
+            
+        finally:
+            # Close the BytesIO buffer
+            qr_image_buffer.close()
+    
+    # Build PDF
+    doc.build(story)
+    
+    # Get PDF content
+    pdf_content = buffer.getvalue()
+    buffer.close()
+    
+    response.write(pdf_content)
+    return response
+
+
+@admin_required
 def admin_merchants_page(request):
+    merchants = Merchant.objects.all().order_by('-created_at')
+    return render(request, 'admin_merchants.html', {'merchants': merchants})
+
+
+@admin_required
+def admin_merchant_new(request):
+    if request.method == 'POST':
+        form = MerchantForm(request.POST)
+        if form.is_valid():
+            merchant = form.save(commit=False)
+            from django.utils import timezone
+            merchant.created_at = timezone.now()
+            merchant.save()
+            request.session['console_msg'] = 'Merchant created successfully.'
+            return redirect('/adv1/admin/merchants')
+    else:
+        form = MerchantForm()
+    return render(request, 'admin_merchant_form.html', {'form': form, 'mode': 'create'})
+
+
+@admin_required
+def admin_merchant_edit(request, pk: str):
+    try:
+        obj = Merchant.objects.get(id=pk)
+    except Merchant.DoesNotExist:
+        return redirect('/adv1/admin/merchants')
+    
+    if request.method == 'POST':
+        form = MerchantForm(request.POST, instance=obj)
+        if form.is_valid():
+            form.save()
+            request.session['console_msg'] = 'Merchant updated successfully.'
+            return redirect('/adv1/admin/merchants')
+    else:
+        form = MerchantForm(instance=obj)
+    return render(request, 'admin_merchant_form.html', {'form': form, 'mode': 'edit', 'obj': obj})
+
+
+@admin_required
+def admin_merchant_delete(request, pk: str):
+    try:
+        obj = Merchant.objects.get(id=pk)
+        obj.delete()
+        request.session['console_msg'] = 'Merchant deleted successfully.'
+    except Merchant.DoesNotExist:
+        pass
+    return redirect('/adv1/admin/merchants')
+
+
+@admin_required
+def admin_terminals_page(request):
+    terminals = POSTerminal.objects.select_related('merchant').all().order_by('-created_at')
+    return render(request, 'admin_terminals.html', {'terminals': terminals})
+
+
+@admin_required
+def admin_terminal_new(request):
+    if request.method == 'POST':
+        form = POSTerminalForm(request.POST)
+        if form.is_valid():
+            terminal = form.save(commit=False)
+            from django.utils import timezone
+            import secrets
+            import string
+            
+            # Auto-generate API key
+            alphabet = string.ascii_letters + string.digits
+            api_key = ''.join(secrets.choice(alphabet) for _ in range(32))
+            terminal.api_key = api_key
+            terminal.created_at = timezone.now()
+            terminal.save()
+            request.session['console_msg'] = 'Terminal created successfully.'
+            return redirect('/adv1/admin/terminals')
+    else:
+        form = POSTerminalForm()
+    return render(request, 'admin_terminal_form.html', {'form': form, 'mode': 'create'})
+
+
+@admin_required
+def admin_terminal_edit(request, pk: str):
+    try:
+        obj = POSTerminal.objects.get(id=pk)
+    except POSTerminal.DoesNotExist:
+        return redirect('/adv1/admin/terminals')
+    
+    if request.method == 'POST':
+        form = POSTerminalForm(request.POST, instance=obj)
+        if form.is_valid():
+            form.save()
+            request.session['console_msg'] = 'Terminal updated successfully.'
+            return redirect('/adv1/admin/terminals')
+    else:
+        form = POSTerminalForm(instance=obj)
+    return render(request, 'admin_terminal_form.html', {'form': form, 'mode': 'edit', 'obj': obj})
+
+
+@admin_required
+def admin_terminal_delete(request, pk: str):
+    try:
+        obj = POSTerminal.objects.get(id=pk)
+        obj.delete()
+        request.session['console_msg'] = 'Terminal deleted successfully.'
+    except POSTerminal.DoesNotExist:
+        pass
+    return redirect('/adv1/admin/terminals')
+
+
+@admin_required
+def admin_pos_redemptions_page(request):
     status = (request.GET.get('status') or '').strip()
     days = int(request.GET.get('days') or 7)
     since = timezone.now() - datetime.timedelta(days=days)

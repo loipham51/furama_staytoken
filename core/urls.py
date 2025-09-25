@@ -10,6 +10,22 @@ urlpatterns = [
   path("adv1/console/scan", views_admin.admin_scan, name="admin_scan"),
   path("adv1/admin/users", views_admin.admin_users_page, name="admin_users_page"),
   path("adv1/admin/vouchers", views_admin.admin_vouchers_page, name="admin_vouchers_page"),
+  path("adv1/admin/vouchers/new", views_admin.admin_voucher_new, name="admin_voucher_new"),
+  path("adv1/admin/vouchers/<str:slug>/edit", views_admin.admin_voucher_edit, name="admin_voucher_edit"),
+  path("adv1/admin/vouchers/<str:slug>/delete", views_admin.admin_voucher_delete, name="admin_voucher_delete"),
+  path("adv1/admin/vouchers/export-qr-pdf", views_admin.admin_voucher_export_qr_pdf, name="admin_voucher_export_qr_pdf"),
+  
+  # Merchant Management
+  path("adv1/admin/merchants", views_admin.admin_merchants_page, name="admin_merchants"),
+  path("adv1/admin/merchants/new", views_admin.admin_merchant_new, name="admin_merchant_new"),
+  path("adv1/admin/merchants/<uuid:pk>", views_admin.admin_merchant_edit, name="admin_merchant_edit"),
+  path("adv1/admin/merchants/<uuid:pk>/delete", views_admin.admin_merchant_delete, name="admin_merchant_delete"),
+  
+  # Terminal Management
+  path("adv1/admin/terminals", views_admin.admin_terminals_page, name="admin_terminals"),
+  path("adv1/admin/terminals/new", views_admin.admin_terminal_new, name="admin_terminal_new"),
+  path("adv1/admin/terminals/<uuid:pk>", views_admin.admin_terminal_edit, name="admin_terminal_edit"),
+  path("adv1/admin/terminals/<uuid:pk>/delete", views_admin.admin_terminal_delete, name="admin_terminal_delete"),
   path("adv1/admin/merchants", views_admin.admin_merchants_page, name="admin_merchants_page"),
   path("adv1/console/quick/gen-qr", views_admin.quick_gen_qr, name="console_gen_qr"),
   path("adv1/console/quick/export-csv", views_admin.quick_export_csv, name="console_export_csv"),
@@ -17,13 +33,16 @@ urlpatterns = [
 
   path("auth/start", views_auth.auth_start, name="auth_start"),
   path("auth/verify", views_auth.auth_verify, name="auth_verify"),
+  path("auth/profile", views_auth.auth_profile, name="auth_profile"),
   path("logout", views_auth.logout, name="logout"),
   path("me", views_me.me, name="me"),
 
   path("", views_home.home, name="home"),
+  path("qr-scanner", views_home.qr_scanner, name="qr_scanner"),
   path('claim/<str:code>/', views_claim.claim_start, name='claim_start'),
   path('claim/<str:code>/submit', views_claim.claim_submit, name='claim_submit'),
   path('claim/<str:code>/done', views_claim.claim_done, name='claim_done'),
+  path('api/claim-mint/<str:slug>', views_claim.claim_mint_now, name='claim_mint_now'),
   path('wallet/export', views_wallet.export_view, name='wallet_export'),
   path('wallet/transfer', views_wallet.transfer_view, name='wallet_transfer'),
   path('pos/check', views_pos.user_portal, name='pos_user_portal'),

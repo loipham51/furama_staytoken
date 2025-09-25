@@ -1,6 +1,7 @@
 {% extends "base_admin.html" %}
 {% block title %}Voucher Management - StayToken{% endblock %}
 {% block content %}
+{% csrf_token %}
 <div class="space-y-4 pb-16">
   <section class="rounded-2xl border bg-white p-4 shadow-sm">
     <div class="flex items-start gap-2.5">
@@ -15,21 +16,26 @@
       <button class="shrink-0 rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white">Search</button>
       <a href="?q=" class="shrink-0 rounded-xl border px-3 py-2 text-sm text-slate-600 hover:bg-slate-50">Clear</a>
     </form>
+    <div class="mt-3 flex gap-2">
+      <a href="/adv1/admin/vouchers/new" class="inline-flex items-center rounded-xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white">New voucher</a>
+      <button onclick="exportVoucherQRs()" class="inline-flex items-center rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white">Export QR Codes</button>
+    </div>
   </section>
 
   <section class="rounded-2xl border bg-white shadow-sm">
     <div class="overflow-x-auto">
       <div class="min-w-[600px]">
-        <div class="grid grid-cols-5 gap-0 border-b bg-slate-50 px-4 py-2 text-[11px] font-medium uppercase tracking-wide text-slate-500">
+        <div class="grid grid-cols-6 gap-0 border-b bg-slate-50 px-4 py-2 text-[11px] font-medium uppercase tracking-wide text-slate-500">
           <div>Slug</div>
           <div>Name</div>
           <div>Status</div>
           <div>Token ID</div>
           <div>Created</div>
+          <div></div>
         </div>
         <div class="divide-y">
           {% for it in page_obj.object_list %}
-          <div class="grid grid-cols-5 gap-2 px-4 py-3 text-sm">
+          <div class="grid grid-cols-6 gap-2 px-4 py-3 text-sm" data-voucher-slug="{{ it.slug }}">
             <div class="truncate font-mono" title="{{ it.slug }}">{{ it.slug }}</div>
             <div class="truncate" title="{{ it.name }}">{{ it.name }}</div>
             <div>
@@ -41,6 +47,13 @@
             </div>
             <div class="font-mono">{{ it.token_id }}</div>
             <div>{{ it.created_at|date:'Y-m-d H:i'|default:"N/A" }}</div>
+            <div class="flex items-center gap-2">
+              <a href="/adv1/admin/vouchers/{{ it.slug }}/edit" class="rounded border px-2 py-1 text-xs">Edit</a>
+              <form method="post" action="/adv1/admin/vouchers/{{ it.slug }}/delete" onsubmit="return confirm('Delete voucher {{ it.slug }}?');">
+                {% csrf_token %}
+                <button class="rounded border px-2 py-1 text-xs text-rose-700">Delete</button>
+              </form>
+            </div>
           </div>
           {% empty %}
           <div class="px-4 py-6 text-sm text-slate-500">No data.</div>
@@ -65,6 +78,62 @@
     </div>
   </section>
 </div>
+
+<script>
+function exportVoucherQRs() {
+  // Get selected vouchers or all vouchers
+  const selectedVouchers = getSelectedVouchers();
+  if (selectedVouchers.length === 0) {
+    alert('Please select vouchers to export QR codes for.');
+    return;
+  }
+  
+  // Show loading
+  const button = event.target;
+  const originalText = button.textContent;
+  button.textContent = 'Generating PDF...';
+  button.disabled = true;
+  
+  // Create form and submit
+  const form = document.createElement('form');
+  form.method = 'POST';
+  form.action = '/adv1/admin/vouchers/export-qr-pdf';
+  
+  // Add CSRF token
+  const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]');
+  if (csrfToken) {
+    form.appendChild(csrfToken.cloneNode());
+  }
+  
+  // Add selected vouchers
+  selectedVouchers.forEach(slug => {
+    const input = document.createElement('input');
+    input.type = 'hidden';
+    input.name = 'vouchers';
+    input.value = slug;
+    form.appendChild(input);
+  });
+  
+  document.body.appendChild(form);
+  form.submit();
+  
+  // Reset button after a delay
+  setTimeout(() => {
+    button.textContent = originalText;
+    button.disabled = false;
+  }, 3000);
+}
+
+function getSelectedVouchers() {
+  // For now, return all vouchers on the page
+  // In a real implementation, you might have checkboxes for selection
+  const vouchers = [];
+  document.querySelectorAll('[data-voucher-slug]').forEach(el => {
+    vouchers.push(el.dataset.voucherSlug);
+  });
+  return vouchers;
+}
+</script>
 {% endblock %}
 
 

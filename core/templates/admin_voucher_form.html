@@ -1,0 +1,99 @@
+{% extends "base_admin.html" %}
+{% block title %}{% if mode == 'edit' %}Edit Voucher{% else %}New Voucher{% endif %} - StayToken{% endblock %}
+{% block content %}
+<div class="mx-auto max-w-2xl px-4 py-6">
+  <!-- Header -->
+  <div class="mb-6">
+    <div class="flex items-center gap-3">
+      <div class="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-600">
+        <svg class="h-5 w-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1"></path>
+        </svg>
+      </div>
+      <div>
+        <h1 class="text-xl font-bold text-slate-900">{% if mode == 'edit' %}Edit Voucher{% else %}Create New Voucher{% endif %}</h1>
+        <p class="text-sm text-slate-600">Design your voucher campaign</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Form -->
+  <div class="bg-white rounded-xl border border-slate-200 shadow-sm">
+    <form method="post" class="p-5">
+        {% csrf_token %}
+        {% if form.non_field_errors %}
+        <div class="mb-4 rounded-lg border border-red-200 bg-red-50 p-3">
+          <div class="flex items-start gap-2">
+            <svg class="h-4 w-4 shrink-0 text-red-500 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+              <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"></path>
+            </svg>
+            <div class="text-sm text-red-700">{{ form.non_field_errors }}</div>
+          </div>
+        </div>
+        {% endif %}
+
+        <!-- Basic Information -->
+        <div class="space-y-4">
+          <div class="space-y-2">
+            <label for="{{ form.name.id_for_label }}" class="block text-sm font-semibold text-slate-700">Voucher Name</label>
+            {{ form.name }}
+            {% if form.name.errors %}<p class="text-xs text-red-600 mt-1">{{ form.name.errors|striptags }}</p>{% endif %}
+          </div>
+          
+          <div class="space-y-2">
+            <label for="{{ form.description.id_for_label }}" class="block text-sm font-semibold text-slate-700">Description</label>
+            {{ form.description }}
+            {% if form.description.errors %}<p class="text-xs text-red-600 mt-1">{{ form.description.errors|striptags }}</p>{% endif %}
+          </div>
+        </div>
+
+
+        <!-- Supply & Limits -->
+        <div class="mt-6 space-y-4">
+          <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <div class="space-y-2">
+              <label for="{{ form.max_supply.id_for_label }}" class="block text-sm font-semibold text-slate-700">Max Supply</label>
+              {{ form.max_supply }}
+              {% if form.max_supply.errors %}<p class="text-xs text-red-600 mt-1">{{ form.max_supply.errors|striptags }}</p>{% endif %}
+            </div>
+            <div class="space-y-2">
+              <label for="{{ form.per_user_limit.id_for_label }}" class="block text-sm font-semibold text-slate-700">Per-user Limit</label>
+              {{ form.per_user_limit }}
+              {% if form.per_user_limit.errors %}<p class="text-xs text-red-600 mt-1">{{ form.per_user_limit.errors|striptags }}</p>{% endif %}
+            </div>
+          </div>
+        </div>
+
+        <!-- Status -->
+        <div class="mt-6">
+          <div class="flex items-center gap-3 rounded-lg border border-slate-200 bg-slate-50 p-3">
+            {{ form.active }}
+            <div>
+              <label for="{{ form.active.id_for_label }}" class="text-sm font-semibold text-slate-700 cursor-pointer">Enable Voucher</label>
+            </div>
+          </div>
+        </div>
+
+        <!-- Actions -->
+        <div class="mt-6 pt-4 border-t border-slate-200">
+          <div class="flex flex-col gap-3 sm:flex-row sm:justify-end">
+            <a href="/adv1/admin/vouchers" class="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-slate-500 focus:ring-offset-2">
+              <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+              </svg>
+              Cancel
+            </a>
+            <button type="submit" class="inline-flex items-center justify-center gap-2 rounded-lg bg-emerald-600 px-6 py-2 text-sm font-semibold text-white shadow-sm hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2">
+              <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+              </svg>
+              {% if mode == 'edit' %}Update Voucher{% else %}Create Voucher{% endif %}
+            </button>
+          </div>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}
+

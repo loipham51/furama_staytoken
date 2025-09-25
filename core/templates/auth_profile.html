@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block title %}Hoàn tất thông tin{% endblock %}
+{% block content %}
+<div class="mx-auto max-w-md px-4 py-6">
+  <div class="rounded-3xl border bg-white p-5 shadow-sm">
+    <div class="flex items-start gap-3">
+      <div class="grid h-10 w-10 place-items-center rounded-xl bg-slate-900 text-xs font-semibold text-white">PRF</div>
+      <div class="min-w-0">
+        <h1 class="text-base font-semibold text-slate-900">Hoàn tất thông tin</h1>
+        <p class="text-sm text-slate-500">Vui lòng cung cấp họ tên và số điện thoại để tiếp tục.</p>
+      </div>
+    </div>
+
+    <form method="post" class="mt-5 space-y-4">
+      {% csrf_token %}
+      <input type="hidden" name="next" value="{{ next|default:'' }}">
+
+      {% if form.non_field_errors %}
+        <div class="rounded-2xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700">{{ form.non_field_errors }}</div>
+      {% endif %}
+
+      <div>
+        <label for="id_full_name" class="mb-1 block text-xs font-medium text-slate-700">Họ và tên</label>
+        <input id="id_full_name" name="full_name" type="text" value="" class="w-full rounded-xl border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-300" placeholder="Ví dụ: Nguyen Van A" required>
+        {% if form.full_name.errors %}<p class="mt-1 text-xs text-rose-600">{{ form.full_name.errors|striptags }}</p>{% endif %}
+      </div>
+      <div>
+        <label for="id_phone" class="mb-1 block text-xs font-medium text-slate-700">Số điện thoại</label>
+        <input id="id_phone" name="phone" type="tel" value="{{ form.phone.value|default:'' }}" class="w-full rounded-xl border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-300" placeholder="Ví dụ: 0901234567" required>
+        {% if form.phone.errors %}<p class="mt-1 text-xs text-rose-600">{{ form.phone.errors|striptags }}</p>{% endif %}
+      </div>
+
+      <div class="flex items-center gap-2">
+        <button class="rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white">Lưu</button>
+        <a href="/" class="text-sm text-slate-600 underline">Hủy</a>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}
+

@@ -32,6 +32,34 @@ def me(request):
             for slug, name, bal in cur.fetchall():
                 balances.append({"slug": slug, "name": name, "balance": int(bal)})
 
+    # Tính per-user limit và đã claim bao nhiêu (reason='claim') theo từng voucher
+    limits = []
+    with connection.cursor() as cur:
+        cur.execute(
+            """
+            SELECT vt.slug,
+                   COALESCE(vt.per_user_limit, 0) AS limit,
+                   COALESCE(SUM(CASE WHEN vtl.reason='claim' THEN vtl.amount ELSE 0 END), 0) AS claimed
+            FROM voucher_type vt
+            LEFT JOIN voucher_transfer_log vtl ON vtl.voucher_type_id = vt.id
+            LEFT JOIN wallet w ON w.id = vtl.to_wallet_id AND w.user_id = %s
+            WHERE vt.active = TRUE
+            GROUP BY vt.slug, vt.per_user_limit
+            ORDER BY vt.slug
+            """,
+            [str(user.id)],
+        )
+        for slug, limit_val, claimed_val in cur.fetchall():
+            limit_int = int(limit_val or 0)
+            claimed_int = int(claimed_val or 0)
+            can_claim = True if limit_int <= 0 else (claimed_int < limit_int)
+            limits.append({
+                "slug": slug,
+                "limit": limit_int,
+                "claimed": claimed_int,
+                "can_claim": can_claim,
+            })
+
     # Serve JSON for clients that request it
     wants_json = 'application/json' in request.headers.get('Accept', '') or request.GET.get('format') == 'json'
     if wants_json:
@@ -52,6 +80,7 @@ def me(request):
             "wallet_address": addr,
             "voucher_total": voucher_total,
             "vouchers": vouchers,
+            "limits": limits,
             "wallet_qr_png": f"/qr/wallet/{addr_no0x(addr)}.png" if addr else None
         })
 

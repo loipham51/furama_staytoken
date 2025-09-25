@@ -211,6 +211,7 @@ ST_OTP_LIMIT_PER_EMAIL = int(os.getenv("ST_OTP_LIMIT_PER_EMAIL", "5"))
 ST_OTP_LIMIT_PER_IP = int(os.getenv("ST_OTP_LIMIT_PER_IP", "20"))
 ST_OTP_WINDOW_SECONDS = int(os.getenv("ST_OTP_WINDOW_SECONDS", "300"))
 ST_DEMO_MODE = env_bool("ST_DEMO_MODE", False)
+ST_POS_VERIFY_ONCHAIN = env_bool("ST_POS_VERIFY_ONCHAIN", False)
 
 # POS API bảo vệ bằng khóa đơn giản
 ST_POS_API_KEY = os.getenv("ST_POS_API_KEY")
@@ -221,6 +222,10 @@ ST_WALLET_STORE_DIR = Path(os.getenv("ST_WALLET_STORE_DIR", BASE_DIR / "wallet_s
 ST_WALLET_STORE_DIR.mkdir(parents=True, exist_ok=True)
 ST_WALLET_ENCRYPTION_KEY = os.getenv("ST_WALLET_ENCRYPTION_KEY")
 ST_ALLOW_KEY_EXPORT = env_bool("ST_ALLOW_KEY_EXPORT", False)
+
+# Optional blockchain explorer prefixes (set in .env if you want clickable links)
+ST_EXPLORER_TX_PREFIX = os.getenv("ST_EXPLORER_TX_PREFIX", "")  # e.g. https://basescan.org/tx/
+ST_EXPLORER_ADDR_PREFIX = os.getenv("ST_EXPLORER_ADDR_PREFIX", "")  # e.g. https://basescan.org/address/
 
 
 # QR image cache (tùy chọn)

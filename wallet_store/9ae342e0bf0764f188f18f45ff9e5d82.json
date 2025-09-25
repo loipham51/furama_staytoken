@@ -1,0 +1,9 @@
+{
+  "provider": "self_custody",
+  "user_external_id": "553aa7d2-2f3d-456e-a83b-e23c0bb1290b",
+  "chain_id": 1,
+  "address": "0x0C86F746f137cD889C582172550828Dc7B50d492",
+  "private_key": "b7e4fb19094eafbb38d78e6896f0f5dce2cc0d8d1d2bcca73e20393e7db12c35",
+  "created_at": "2025-09-23T08:08:40.042110+00:00",
+  "exportable": false
+}

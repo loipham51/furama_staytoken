@@ -11,6 +11,7 @@ from django.urls import reverse
 from .models import VoucherType, VoucherBalance, Wallet
 from .auth_utils import login_required, get_current_user
 from .pos_utils import get_terminal_by_api_key, terminal_allows_voucher
+from .adapters.erc1155_client import ERC1155Client
 
 
 def _get_terminal(request):
@@ -114,8 +115,27 @@ def api_check(request):
         return JsonResponse({"ok": False, "balance": 0, "pos": terminal["code"]})
 
     vb = VoucherBalance.objects.filter(wallet=wallet, voucher_type=voucher).first()
-    bal = int(vb.balance) if vb else 0
-    return JsonResponse({"ok": True, "balance": bal, "pos": terminal["code"]})
+    offchain_bal = int(vb.balance) if vb else 0
+
+    onchain_bal = None
+    if getattr(settings, 'ST_POS_VERIFY_ONCHAIN', False):
+        try:
+            client = ERC1155Client(
+                rpc_url=settings.ST_RPC_URL,
+                contract_address=voucher.erc1155_contract or settings.ST_DEFAULT_CONTRACT,
+                signer_key=settings.ST_ERC1155_SIGNER,
+                chain_id=settings.ST_CHAIN_ID,
+            )
+            onchain_bal = int(client.balance_of(wallet.address_hex, int(voucher.token_id)))
+        except Exception as exc:
+            onchain_bal = -1  # indicate error
+
+    return JsonResponse({
+        "ok": True,
+        "balance": offchain_bal,
+        "onchain_balance": onchain_bal,
+        "pos": terminal["code"],
+    })
 
 
 @csrf_exempt

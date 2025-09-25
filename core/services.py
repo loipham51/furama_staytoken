@@ -18,6 +18,7 @@ from .models import (
     Policy,
 )
 from .adapters.wallet_provider import WalletProviderAdapter
+from .adapters.erc1155_client import ERC1155Client
 
 
 def _ip_hash(ip: str) -> Optional[str]:
@@ -25,6 +26,37 @@ def _ip_hash(ip: str) -> Optional[str]:
         return None
     seed = settings.SECRET_KEY or "x"
     return hashlib.sha256((ip + seed).encode("utf-8")).hexdigest()
+
+
+# ---------------- Per-user claim limit helpers ----------------
+
+def get_user_total_claimed(user: AppUser, voucher: VoucherType) -> int:
+    """Total amount ever claimed by this user for given voucher (based on transfer log)."""
+    with connection.cursor() as cur:
+        cur.execute(
+            """
+            SELECT COALESCE(SUM(vtl.amount), 0)
+            FROM voucher_transfer_log vtl
+            JOIN wallet w ON w.id = vtl.to_wallet_id
+            WHERE w.user_id = %s AND vtl.voucher_type_id = %s AND vtl.reason = 'claim'
+            """,
+            [str(user.id), str(voucher.id)],
+        )
+        row = cur.fetchone()
+    return int(row[0] or 0)
+
+
+def can_user_claim(user: AppUser, voucher: VoucherType, amount: int = 1) -> tuple[bool, int, int]:
+    """
+    Returns (ok, claimed_so_far, limit) where ok indicates user can claim `amount` more.
+    If per_user_limit is null, 0, or negative, treat as unlimited.
+    """
+    limit = int(voucher.per_user_limit or 0)
+    if limit <= 0:
+        return True, 0, 0
+    claimed = get_user_total_claimed(user, voucher)
+    ok = (claimed + amount) <= limit
+    return ok, claimed, limit
 
 
 def _normalize_evm_address(address: str) -> str:
@@ -271,6 +303,41 @@ def log_claim_request(qr: QRClaim, ip: Optional[str], ua: Optional[str], email: 
                 result,
             ],
         )
+
+
+# Synchronous on-chain mint using configured signer
+@transaction.atomic
+def mint_erc1155_now(wallet: Wallet, voucher: VoucherType, amount: int = 1, *, wait: bool = True) -> str:
+    contract = voucher.erc1155_contract or settings.ST_DEFAULT_CONTRACT
+    client = ERC1155Client(
+        rpc_url=settings.ST_RPC_URL,
+        contract_address=contract,
+        signer_key=settings.ST_ERC1155_SIGNER,
+        chain_id=settings.ST_CHAIN_ID,
+    )
+    to_addr = wallet.address_hex
+    if not to_addr:
+        raise ValueError("Target wallet has no address")
+    tx_hash = client.mint_to(to_address=to_addr, token_id=int(voucher.token_id), amount=int(amount), data=None, wait=wait)
+
+    # Record as confirmed in onchain_tx for audit
+    new_id = uuid.uuid4()
+    with connection.cursor() as cur:
+        cur.execute(
+            """
+            INSERT INTO onchain_tx (id, kind, voucher_type_id, to_wallet_id, amount, status, tx_hash, created_at, updated_at)
+            VALUES (%s, 'mint1155', %s, %s, %s, %s, %s, NOW(), NOW())
+            """,
+            [
+                str(new_id),
+                str(voucher.id),
+                str(wallet.id),
+                amount,
+                'confirmed' if wait else 'sent',
+                tx_hash,
+            ],
+        )
+    return tx_hash
 
 
 def finish_qr_claim(qr: QRClaim, user: AppUser):

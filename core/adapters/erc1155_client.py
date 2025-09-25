@@ -5,7 +5,16 @@ from typing import Iterable, List, Optional, Tuple
 from eth_account import Account
 from web3 import Web3
 from web3.exceptions import ContractLogicError
-from web3.middleware import geth_poa_middleware
+try:
+    # Web3.py v6+
+    from web3.middleware import ExtraDataToPOAMiddleware as _POA_MIDDLEWARE  # type: ignore
+except Exception:  # pragma: no cover - fallback for older Web3 versions
+    try:
+        # Web3.py v5 legacy path
+        from web3.middleware.geth_poa import geth_poa_middleware as _POA_MIDDLEWARE  # type: ignore
+    except Exception:  # pragma: no cover
+        # Another v5 style export
+        from web3.middleware import geth_poa_middleware as _POA_MIDDLEWARE  # type: ignore
 from web3.types import TxParams
 
 
@@ -13,6 +22,18 @@ class ERC1155Client:
     """Thin Web3 helper around an ERC-1155 contract."""
 
     DEFAULT_ABI = [
+        {
+            'inputs': [
+                {'internalType': 'address', 'name': 'account', 'type': 'address'},
+                {'internalType': 'uint256', 'name': 'id', 'type': 'uint256'},
+            ],
+            'name': 'balanceOf',
+            'outputs': [
+                {'internalType': 'uint256', 'name': '', 'type': 'uint256'},
+            ],
+            'stateMutability': 'view',
+            'type': 'function',
+        },
         {
             'inputs': [
                 {'internalType': 'address', 'name': 'from', 'type': 'address'},
@@ -82,13 +103,17 @@ class ERC1155Client:
         *,
         chain_id: Optional[int] = None,
         abi: Optional[Iterable[dict]] = None,
+        use_poa_middleware: bool = True,
+        request_timeout: int = 30,
     ) -> None:
-        self.web3 = Web3(Web3.HTTPProvider(rpc_url, request_kwargs={'timeout': 30}))
-        try:
-            self.web3.middleware_onion.inject(geth_poa_middleware, layer=0)
-        except ValueError:
-            # Middleware already injected; ignore.
-            pass
+        self.web3 = Web3(Web3.HTTPProvider(rpc_url, request_kwargs={'timeout': request_timeout}))
+        if use_poa_middleware:
+            try:
+                # Works for both v6 (class) and v5 (callable)
+                self.web3.middleware_onion.inject(_POA_MIDDLEWARE, layer=0)
+            except ValueError:
+                # Middleware already injected; ignore.
+                pass
 
         self.account = Account.from_key(signer_key)
         self.address = self.account.address
@@ -99,6 +124,17 @@ class ERC1155Client:
             address=Web3.to_checksum_address(contract_address),
             abi=list(abi) if abi is not None else self.DEFAULT_ABI,
         )
+
+    def get_tx(self, tx_hash: str):
+        return self.web3.eth.get_transaction(tx_hash)
+
+    def balance_of(self, account: str, token_id: int) -> int:
+        acct = Web3.to_checksum_address(account)
+        try:
+            fn = self.contract.functions.balanceOf(acct, int(token_id))
+            return int(fn.call())
+        except Exception as exc:
+            raise RuntimeError(f"balanceOf failed: {exc}")
 
     def _detect_chain_id(self, override: Optional[int]) -> int:
         if override:
@@ -154,7 +190,11 @@ class ERC1155Client:
 
     def _sign_and_send(self, tx: TxParams) -> str:
         signed = self.account.sign_transaction(tx)
-        tx_hash = self.web3.eth.send_raw_transaction(signed.rawTransaction)
+        # Handle both Web3.py v5 and v6
+        raw_tx = getattr(signed, 'rawTransaction', None) or getattr(signed, 'raw_transaction', None)
+        if raw_tx is None:
+            raise RuntimeError("Unable to get raw transaction from signed transaction")
+        tx_hash = self.web3.eth.send_raw_transaction(raw_tx)
         return self.web3.to_hex(tx_hash)
 
     def safe_transfer(
