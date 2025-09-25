@@ -167,7 +167,11 @@ class QRClaim(models.Model):
     expires_at = models.DateTimeField(null=True, blank=True)
     used_by_user = models.ForeignKey("AppUser", null=True, on_delete=models.SET_NULL, db_column="used_by_user")
     used_at = models.DateTimeField(null=True, blank=True)
-    status = models.CharField(max_length=16, default="new")  # new|used|expired
+    status = models.CharField(max_length=16, default="new", choices=[
+        ("new", "New"),
+        ("used", "Used"), 
+        ("expired", "Expired")
+    ])
     created_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:

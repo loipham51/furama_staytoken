@@ -894,76 +894,67 @@ def admin_pos_scanner(request):
 @admin_required
 @require_http_methods(["POST"])
 def admin_pos_validate_voucher(request):
-    """Validate a voucher from QR code scan."""
+    """Validate a voucher from QRClaim code scan."""
     try:
         data = json.loads(request.body)
-        voucher_slug = data.get('voucher_slug')
-        wallet_address = data.get('wallet_address')
+        qr_code = data.get('qr_code')
         
-        if not voucher_slug or not wallet_address:
+        if not qr_code:
             return JsonResponse({
                 "success": False,
-                "message": "Missing voucher_slug or wallet_address"
+                "message": "Missing QR code"
             }, status=400)
         
-        # Get voucher type
-        from .models import VoucherType, Wallet, VoucherBalance
+        # Get QRClaim by code
+        from .models import QRClaim, VoucherBalance
         try:
-            voucher = VoucherType.objects.get(slug=voucher_slug, active=True)
-        except VoucherType.DoesNotExist:
+            qr_claim = QRClaim.objects.select_related('voucher_type', 'used_by_user').get(code=qr_code)
+        except QRClaim.DoesNotExist:
             return JsonResponse({
                 "success": False,
-                "message": "Voucher not found or inactive"
+                "message": "QR code not found"
             })
         
-        # Get wallet
-        try:
-            wallet = Wallet.objects.get(address_hex=wallet_address)
-        except Wallet.DoesNotExist:
+        # Check if already used
+        if qr_claim.status == 'used':
             return JsonResponse({
                 "success": False,
-                "message": "Wallet not found"
+                "message": "This voucher has already been used"
             })
         
-        # Check voucher balance
+        # Get user's wallet and balance
+        wallet = qr_claim.used_by_user.wallets.first()
+        if not wallet:
+            return JsonResponse({
+                "success": False,
+                "message": "User has no wallet"
+            })
+        
         try:
-            balance = VoucherBalance.objects.get(wallet=wallet, voucher_type=voucher)
-            balance_amount = balance.amount
+            balance = VoucherBalance.objects.get(wallet=wallet, voucher_type=qr_claim.voucher_type)
+            balance_amount = balance.balance
         except VoucherBalance.DoesNotExist:
             balance_amount = 0
         
-        # Validate on blockchain
-        from .adapters.erc1155_client import ERC1155Client
-        try:
-            client = ERC1155Client()
-            onchain_balance = client.balance_of(wallet_address, voucher.token_id)
-            
-            # Check if user has sufficient balance
-            is_valid = onchain_balance > 0 and balance_amount > 0
-            
-            if is_valid:
-                message = f"Valid voucher. Balance: {balance_amount} tokens"
-            else:
-                if onchain_balance == 0:
-                    message = "No tokens found on blockchain"
-                elif balance_amount == 0:
-                    message = "No balance in database"
-                else:
-                    message = "Invalid voucher"
-                    
-        except Exception as e:
-            return JsonResponse({
-                "success": False,
-                "message": f"Blockchain validation error: {str(e)}"
-            })
+        # Check if user has sufficient balance
+        is_valid = balance_amount > 0
         
+        if is_valid:
+            message = f"✅ Valid voucher. Balance: {balance_amount} tokens"
+        else:
+            message = "❌ No voucher balance found"
+            
         return JsonResponse({
             "success": True,
-            "voucher_name": voucher.name,
+            "qr_code": qr_code,
+            "voucher_name": qr_claim.voucher_type.name,
+            "voucher_slug": qr_claim.voucher_type.slug,
             "balance": balance_amount,
-            "onchain_balance": onchain_balance,
             "is_valid": is_valid,
-            "message": message
+            "message": message,
+            "wallet_address": wallet.address_hex,
+            "user_name": qr_claim.used_by_user.full_name or qr_claim.used_by_user.email or "Unknown",
+            "created_at": qr_claim.created_at.isoformat()
         })
         
     except json.JSONDecodeError:
@@ -982,51 +973,99 @@ def admin_pos_validate_voucher(request):
 @require_http_methods(["POST"])
 def admin_pos_confirm_redemption(request):
     """Confirm voucher redemption and update balances."""
+    from django.db import transaction
+    
     try:
         data = json.loads(request.body)
-        voucher_slug = data.get('voucher_slug')
-        wallet_address = data.get('wallet_address')
+        qr_code = data.get('qr_code')
         
-        if not voucher_slug or not wallet_address:
+        print(f"Confirm redemption request for QR code: {qr_code}")
+        
+        if not qr_code:
             return JsonResponse({
                 "success": False,
-                "message": "Missing voucher_slug or wallet_address"
+                "message": "Missing QR code"
             }, status=400)
         
-        # Get voucher type and wallet
-        from .models import VoucherType, Wallet, VoucherBalance
+        # Get QRClaim
+        from .models import QRClaim, VoucherBalance, POSRedemption
         try:
-            voucher = VoucherType.objects.get(slug=voucher_slug, active=True)
-            wallet = Wallet.objects.get(address_hex=wallet_address)
-        except (VoucherType.DoesNotExist, Wallet.DoesNotExist):
+            qr_claim = QRClaim.objects.select_related('voucher_type', 'used_by_user').get(code=qr_code)
+            print(f"Found QRClaim: {qr_claim.id}, status: {qr_claim.status}")
+        except QRClaim.DoesNotExist:
+            print(f"QRClaim not found for code: {qr_code}")
             return JsonResponse({
                 "success": False,
-                "message": "Voucher or wallet not found"
+                "message": "QR code not found"
             })
         
-        # Check current balance
-        try:
-            balance = VoucherBalance.objects.get(wallet=wallet, voucher_type=voucher)
-            if balance.amount <= 0:
+        # Check if already used
+        if qr_claim.status == 'used':
+            return JsonResponse({
+                "success": False,
+                "message": "This voucher has already been used"
+            })
+        
+        with transaction.atomic():
+            # Get user's wallet and balance
+            wallet = qr_claim.used_by_user.wallets.first()
+            if not wallet:
                 return JsonResponse({
                     "success": False,
-                    "message": "Insufficient voucher balance"
+                    "message": "User has no wallet"
                 })
-        except VoucherBalance.DoesNotExist:
-            return JsonResponse({
-                "success": False,
-                "message": "No voucher balance found"
-            })
+            
+            try:
+                balance = VoucherBalance.objects.get(wallet=wallet, voucher_type=qr_claim.voucher_type)
+                if balance.balance <= 0:
+                    return JsonResponse({
+                        "success": False,
+                        "message": "Insufficient voucher balance"
+                    })
+            except VoucherBalance.DoesNotExist:
+                return JsonResponse({
+                    "success": False,
+                    "message": "No voucher balance found"
+                })
+            
+            # Perform redemption (decrease balance by 1)
+            from django.db import connection
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    "UPDATE voucher_balance SET balance = balance - 1, updated_at = NOW() WHERE wallet_id = %s AND voucher_type_id = %s",
+                    [wallet.id, qr_claim.voucher_type.id]
+                )
+            
+            # Update QRClaim status to used
+            qr_claim.status = 'used'
+            qr_claim.used_at = timezone.now()
+            qr_claim.save()
+            
+            # Create POS redemption record
+            try:
+                pos_redemption = POSRedemption.objects.create(
+                    voucher_type=qr_claim.voucher_type,
+                    wallet=wallet,
+                    amount=1,
+                    status='committed',
+                    pos_terminal='pos_scanner',
+                    reserved_at=timezone.now(),
+                    committed_at=timezone.now()
+                )
+                print(f"Created POSRedemption: {pos_redemption.id}")
+            except Exception as e:
+                print(f"Error creating POSRedemption: {e}")
+                # Continue anyway, don't fail the redemption
         
-        # Perform redemption (decrease balance by 1)
-        balance.amount -= 1
-        balance.save()
+        # Get updated balance for response
+        updated_balance = VoucherBalance.objects.get(wallet=wallet, voucher_type=qr_claim.voucher_type)
         
-        # Note: VoucherTransferLog removed - using QRClaim for tracking instead
+        response_message = f"Voucher redeemed successfully. Remaining balance: {updated_balance.balance}"
+        print(f"Returning success response: {response_message}")
         
         return JsonResponse({
             "success": True,
-            "message": f"Voucher redeemed successfully. Remaining balance: {balance.amount}"
+            "message": response_message
         })
         
     except json.JSONDecodeError:

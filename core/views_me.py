@@ -70,12 +70,23 @@ def me(request):
             return a[2:] if a and a.startswith('0x') else (a or '')
         vouchers = []
         if addr:
+            # Get QRClaim codes for each voucher
+            from .models import QRClaim
             for it in balances:
+                # Get the latest QRClaim for this user and voucher
+                qr_claim = QRClaim.objects.filter(
+                    used_by_user=user,
+                    voucher_type__slug=it["slug"]
+                ).order_by('-created_at').first()
+                
+                qr_code = qr_claim.code if qr_claim else None
+                
                 vouchers.append({
                     "slug": it["slug"],
                     "name": it["name"],
                     "balance": it["balance"],
-                    "qr_png": f"/qr/voucher/{it['slug']}/{addr_no0x(addr)}.png"
+                    "qr_png": f"/qr/voucher/{it['slug']}/{addr_no0x(addr)}.png",
+                    "qr_claim_code": qr_code  # Add QRClaim code for POS scanner
                 })
         return JsonResponse({
             "wallet_address": addr,
@@ -140,6 +151,8 @@ def my_vouchers(request):
 
     balances = []
     if wallet:
+        # Get QRClaim codes for each voucher
+        from .models import QRClaim
         with connection.cursor() as cur:
             cur.execute("""
                 SELECT vt.slug, vt.name, vb.balance
@@ -149,6 +162,19 @@ def my_vouchers(request):
                 ORDER BY vt.slug
             """, [str(wallet["id"])])
             for slug, name, bal in cur.fetchall():
-                balances.append({"slug": slug, "name": name, "balance": int(bal)})
+                # Get the latest QRClaim for this user and voucher
+                qr_claim = QRClaim.objects.filter(
+                    used_by_user=user,
+                    voucher_type__slug=slug
+                ).order_by('-created_at').first()
+                
+                qr_claim_code = qr_claim.code if qr_claim else None
+                
+                balances.append({
+                    "slug": slug, 
+                    "name": name, 
+                    "balance": int(bal),
+                    "qr_claim_code": qr_claim_code
+                })
 
     return render(request, "me_vouchers.html", {"wallet": wallet, "balances": balances})

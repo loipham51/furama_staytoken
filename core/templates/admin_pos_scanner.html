@@ -74,12 +74,13 @@
   <!-- Manual Input -->
   <section class="rounded-2xl border bg-white p-6 shadow-sm">
     <h3 class="text-sm font-semibold text-slate-900 mb-3">Manual Input</h3>
+    
     <div class="flex gap-2">
       <input 
         type="text" 
         x-model="manualCode"
         @keyup.enter="processVoucherCode(manualCode)"
-        placeholder="Enter voucher QR data manually..."
+        placeholder="Enter QRClaim code (e.g., spa-30off-2025_a1b2c3d4)..."
         class="flex-1 rounded-xl border border-slate-300 px-3 py-2 text-sm placeholder:text-slate-500 focus:border-blue-600 focus:outline-none"
       />
       <button 
@@ -87,7 +88,7 @@
         :disabled="!manualCode.trim()"
         class="rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white disabled:bg-slate-300 disabled:cursor-not-allowed"
       >
-        Process
+        Validate
       </button>
     </div>
   </section>
@@ -106,22 +107,42 @@
     <div class="space-y-4">
       <!-- Voucher Info -->
       <div class="rounded-xl bg-slate-50 p-4">
-        <div class="grid grid-cols-2 gap-4 text-sm">
+          <div class="grid grid-cols-1 gap-4 text-sm">
           <div>
-            <p class="font-medium text-slate-600">Voucher Name</p>
-            <p class="text-slate-900" x-text="voucherData?.name || 'Unknown'"></p>
+            <p class="font-medium text-slate-600">QR Code</p>
+            <p class="font-mono text-slate-900" x-text="voucherData?.qr_code || 'Unknown'"></p>
           </div>
+          
+          <div class="grid grid-cols-2 gap-4">
+            <div>
+              <p class="font-medium text-slate-600">Voucher Name</p>
+              <p class="text-slate-900" x-text="voucherData?.name || 'Unknown'"></p>
+            </div>
+            <div>
+              <p class="font-medium text-slate-600">Voucher Slug</p>
+              <p class="font-mono text-slate-900" x-text="voucherData?.slug || 'Unknown'"></p>
+            </div>
+          </div>
+          
           <div>
-            <p class="font-medium text-slate-600">Voucher Code</p>
-            <p class="font-mono text-slate-900" x-text="voucherData?.slug || 'Unknown'"></p>
+            <p class="font-medium text-slate-600">Customer</p>
+            <p class="text-slate-900" x-text="voucherData?.user_name || 'Unknown'"></p>
           </div>
+          
           <div>
             <p class="font-medium text-slate-600">Wallet Address</p>
-            <p class="font-mono text-xs text-slate-900" x-text="voucherData?.wallet_address || 'Unknown'"></p>
+            <p class="font-mono text-xs text-slate-900 break-all" x-text="voucherData?.wallet_address || 'Unknown'"></p>
           </div>
-          <div>
-            <p class="font-medium text-slate-600">Balance</p>
-            <p class="text-slate-900" x-text="voucherData?.balance || '0'"></p>
+          
+          <div class="grid grid-cols-2 gap-4">
+            <div>
+              <p class="font-medium text-slate-600">Balance</p>
+              <p class="text-lg font-semibold text-slate-900" x-text="voucherData?.balance || '0'"></p>
+            </div>
+            <div>
+              <p class="font-medium text-slate-600">Created At</p>
+              <p class="text-sm text-slate-900" x-text="voucherData?.created_at ? new Date(voucherData.created_at).toLocaleString() : 'Unknown'"></p>
+            </div>
           </div>
         </div>
       </div>
@@ -163,15 +184,100 @@
   </section>
 
   <!-- Success/Error Messages -->
-  <div x-show="message" class="rounded-2xl border p-4" :class="messageType === 'success' ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'">
-    <div class="flex items-center gap-2">
-      <div class="grid h-6 w-6 place-items-center rounded-full" :class="messageType === 'success' ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-600'">
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" class="h-4 w-4" fill="currentColor">
-          <path d="M9 16.17 4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" x-show="messageType === 'success'"/>
-          <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" x-show="messageType === 'error'"/>
+  <div x-show="message" 
+       x-transition:enter="transition ease-out duration-300"
+       x-transition:enter-start="opacity-0 transform scale-95"
+       x-transition:enter-end="opacity-100 transform scale-100"
+       x-transition:leave="transition ease-in duration-200"
+       x-transition:leave-start="opacity-100 transform scale-100"
+       x-transition:leave-end="opacity-0 transform scale-95"
+       class="rounded-2xl border p-6" 
+       :class="messageType === 'success' ? 'bg-green-50 border-green-200 shadow-lg' : 'bg-red-50 border-red-200'">
+    
+    <!-- Debug Info -->
+    <div class="mb-4 p-3 bg-gray-100 rounded-lg text-xs" style="display: none;">
+      <strong>Debug:</strong> 
+      messageType: <span x-text="messageType"></span> | 
+      isRedemptionSuccess: <span x-text="isRedemptionSuccess"></span> | 
+      message: <span x-text="message"></span>
+    </div>
+
+    <!-- Redemption Success Message -->
+    <div x-show="messageType === 'success' && isRedemptionSuccess" class="text-center">
+      <div class="mx-auto mb-4 grid h-16 w-16 place-items-center rounded-full bg-green-100">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" class="h-8 w-8 text-green-600" fill="currentColor">
+          <path d="M9 16.17 4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
         </svg>
       </div>
-      <p class="font-medium" :class="messageType === 'success' ? 'text-green-800' : 'text-red-800'" x-text="message"></p>
+      <h3 class="text-lg font-semibold text-green-800 mb-2">🎉 Redemption Successful!</h3>
+      <p class="text-green-700 mb-4" x-text="message"></p>
+      <div class="flex items-center justify-center gap-2 text-sm text-green-600 mb-4">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" class="h-4 w-4" fill="currentColor">
+          <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
+        </svg>
+        <span>Voucher has been redeemed and marked as used</span>
+      </div>
+      
+      <div class="flex gap-3 justify-center">
+        <button 
+          @click="clearMessage()"
+          class="rounded-xl bg-green-600 px-6 py-2 text-sm font-semibold text-white hover:bg-green-700 transition-colors"
+        >
+          Scan Another Voucher
+        </button>
+        <button 
+          @click="clearMessage(); clearVoucherData()"
+          class="rounded-xl border border-green-300 px-6 py-2 text-sm font-semibold text-green-700 hover:bg-green-50 transition-colors"
+        >
+          Clear All
+        </button>
+        <!-- Debug button -->
+        <button 
+          @click="showSuccessMessage('Test success message')"
+          class="rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 transition-colors"
+        >
+          Test Success
+        </button>
+        <!-- Test QR button -->
+        <button 
+          @click="processVoucherCode('hai-van-lounge-free-cocktail_52db6a38')"
+          class="rounded-xl bg-purple-600 px-4 py-2 text-sm font-semibold text-white hover:bg-purple-700 transition-colors"
+        >
+          Test QR
+        </button>
+      </div>
+    </div>
+
+    <!-- Validation Success Message -->
+    <div x-show="messageType === 'success' && !isRedemptionSuccess" class="flex items-center gap-3">
+      <div class="grid h-8 w-8 place-items-center rounded-full bg-green-100 text-green-600 flex-shrink-0">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" class="h-5 w-5" fill="currentColor">
+          <path d="M9 16.17 4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
+        </svg>
+      </div>
+      <div class="flex-1">
+        <h4 class="font-semibold text-green-800 mb-1">✅ Voucher Validated</h4>
+        <p class="text-green-700" x-text="message"></p>
+      </div>
+    </div>
+
+    <!-- Error Message -->
+    <div x-show="messageType === 'error'" class="flex items-start gap-3">
+      <div class="grid h-8 w-8 place-items-center rounded-full bg-red-100 text-red-600 flex-shrink-0">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" class="h-5 w-5" fill="currentColor">
+          <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
+        </svg>
+      </div>
+      <div class="flex-1">
+        <h4 class="font-semibold text-red-800 mb-1">❌ Redemption Failed</h4>
+        <p class="text-red-700 mb-3" x-text="message"></p>
+        <button 
+          @click="clearMessage()"
+          class="rounded-xl bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700 transition-colors"
+        >
+          Try Again
+        </button>
+      </div>
     </div>
   </div>
 </div>
@@ -187,6 +293,7 @@ function posScannerView() {
     processing: false,
     message: '',
     messageType: '',
+    isRedemptionSuccess: false,
 
     init() {
       // Initialize scanner
@@ -238,6 +345,7 @@ function posScannerView() {
         
         if (code) {
           console.log('QR Code detected:', code.data);
+          console.log('QR code location:', code.location);
           this.processVoucherCode(code.data);
           return;
         }
@@ -263,33 +371,17 @@ function posScannerView() {
     async processVoucherCode(qrData) {
       if (!qrData || !qrData.trim()) return;
       
+      console.log('Processing QR data:', qrData);
+      
       this.processing = true;
       this.clearMessage();
       
+      // Show QR data in UI for debugging
+      this.showMessage(`QR Code detected: ${qrData}`, 'success');
+      
       try {
-        // Parse QR code data
-        let voucherSlug, walletAddress;
-        
-        if (qrData.startsWith('voucher:')) {
-          // Format: "voucher:spa-30off-2025:0x1234..."
-          const parts = qrData.split(':');
-          if (parts.length >= 3) {
-            voucherSlug = parts[1];
-            walletAddress = parts[2];
-          }
-        } else {
-          // Try to extract from other formats
-          this.showMessage('Invalid QR code format. Expected voucher:slug:address', 'error');
-          return;
-        }
-        
-        if (!voucherSlug || !walletAddress) {
-          this.showMessage('Could not parse voucher information from QR code', 'error');
-          return;
-        }
-        
-        // Validate voucher
-        await this.validateVoucher(voucherSlug, walletAddress);
+        // Just validate the QR code directly
+        await this.validateVoucher(qrData.trim());
         
       } catch (error) {
         this.showMessage('Error processing voucher: ' + error.message, 'error');
@@ -299,7 +391,7 @@ function posScannerView() {
       }
     },
 
-    async validateVoucher(voucherSlug, walletAddress) {
+    async validateVoucher(qrCode) {
       try {
         const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]')?.value || '';
         
@@ -311,8 +403,7 @@ function posScannerView() {
             'Accept': 'application/json'
           },
           body: JSON.stringify({
-            voucher_slug: voucherSlug,
-            wallet_address: walletAddress
+            qr_code: qrCode
           })
         });
         
@@ -320,16 +411,19 @@ function posScannerView() {
         
         if (response.ok && data.success) {
           this.voucherData = {
+            qr_code: data.qr_code,
             name: data.voucher_name,
-            slug: voucherSlug,
-            wallet_address: walletAddress,
+            slug: data.voucher_slug,
+            wallet_address: data.wallet_address,
+            user_name: data.user_name,
             balance: data.balance,
             is_valid: data.is_valid,
-            status_message: data.message
+            status_message: data.message,
+            created_at: data.created_at
           };
           
           if (data.is_valid) {
-            this.showMessage('Voucher validated successfully!', 'success');
+            this.showValidationSuccess('✅ Voucher is valid and ready for redemption');
           } else {
             this.showMessage(data.message, 'error');
           }
@@ -342,6 +436,7 @@ function posScannerView() {
         console.error('Validation error:', error);
       }
     },
+
 
     async confirmRedemption() {
       if (!this.voucherData || !this.voucherData.is_valid) return;
@@ -359,17 +454,21 @@ function posScannerView() {
             'Accept': 'application/json'
           },
           body: JSON.stringify({
-            voucher_slug: this.voucherData.slug,
-            wallet_address: this.voucherData.wallet_address
+            qr_code: this.voucherData.qr_code
           })
         });
         
         const data = await response.json();
         
+        console.log('Redemption response:', response.status, data);
+        
         if (response.ok && data.success) {
-          this.showMessage('Voucher redeemed successfully!', 'success');
-          this.clearVoucherData();
+          console.log('Showing success message:', data.message);
+          this.showSuccessMessage(data.message || 'Voucher redeemed successfully!');
+          // Don't clear voucher data immediately, let user see the success message
+          // this.clearVoucherData();
         } else {
+          console.log('Showing error message:', data.message);
           this.showMessage(data.message || 'Failed to redeem voucher', 'error');
         }
         
@@ -388,8 +487,10 @@ function posScannerView() {
     },
 
     showMessage(text, type) {
+      console.log('showMessage called with:', text, type);
       this.message = text;
       this.messageType = type;
+      console.log('Message set:', this.message, 'Type:', this.messageType);
       
       // Auto-hide success messages after 5 seconds
       if (type === 'success') {
@@ -399,9 +500,55 @@ function posScannerView() {
       }
     },
 
+    showSuccessMessage(text) {
+      console.log('showSuccessMessage called with:', text);
+      this.message = text;
+      this.messageType = 'success';
+      this.isRedemptionSuccess = true; // Flag to show redemption success UI
+      console.log('Message set:', this.message, 'Type:', this.messageType, 'IsRedemption:', this.isRedemptionSuccess);
+      
+      // Force Alpine.js to update the DOM
+      this.$nextTick(() => {
+        console.log('DOM updated, checking visibility...');
+        const successDiv = document.querySelector('[x-show="messageType === \'success\' && isRedemptionSuccess"]');
+        if (successDiv) {
+          console.log('Success div found:', successDiv);
+          console.log('Success div style:', successDiv.style.display);
+        } else {
+          console.log('Success div not found!');
+        }
+      });
+      
+      // Play success sound (if available)
+      try {
+        const audio = new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBSuBzvLZiTYIG2m98OScTgwOUarm7blmGgU7k9n1unEiBS13yO/eizEIHWq+8+OWT');
+        audio.volume = 0.3;
+        audio.play().catch(() => {}); // Ignore errors if audio fails
+      } catch (e) {
+        // Ignore audio errors
+      }
+      
+      // Auto-hide after 8 seconds for success messages
+      setTimeout(() => {
+        this.clearMessage();
+      }, 8000);
+    },
+
+    showValidationSuccess(text) {
+      this.message = text;
+      this.messageType = 'success';
+      this.isRedemptionSuccess = false; // Flag to show validation success UI
+      
+      // Auto-hide after 5 seconds for validation messages
+      setTimeout(() => {
+        this.clearMessage();
+      }, 5000);
+    },
+
     clearMessage() {
       this.message = '';
       this.messageType = '';
+      this.isRedemptionSuccess = false;
     }
   };
 }

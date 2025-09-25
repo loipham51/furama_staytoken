@@ -30,3 +30,11 @@ def voucher_qr_png(request, slug: str, addr: str):
     data = f"voucher:{slug}:0x{normalized}"
     path = Path(get_or_make_cached_png(f"voucher_{slug}_{normalized}.png", data))
     return FileResponse(path.open("rb"), content_type="image/png")
+
+# QR cho QRClaim code (để POS scanner redeem)
+def qr_claim_png(request, code: str):
+    if not re.fullmatch(r"[A-Za-z0-9_-]+", code or ""):
+        raise Http404("Invalid QR claim code")
+    data = code  # QRClaim code is the data itself
+    path = Path(get_or_make_cached_png(f"qr_claim_{code}.png", data))
+    return FileResponse(path.open("rb"), content_type="image/png")
