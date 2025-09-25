@@ -1,0 +1,409 @@
+{% extends "base_admin.html" %}
+{% block title %}POS Scanner - StayToken{% endblock %}
+{% block content %}
+{% csrf_token %}
+<script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
+
+<div x-data="posScannerView()" x-init="init()" class="space-y-4 pb-16">
+  <!-- Header -->
+  <section class="rounded-2xl border bg-white p-4 shadow-sm">
+    <div class="flex items-start gap-2.5">
+      <div class="grid h-10 w-10 place-items-center rounded-xl bg-blue-600 text-xs font-semibold text-white">POS</div>
+      <div class="min-w-0">
+        <h1 class="text-base font-semibold text-slate-900">POS Scanner</h1>
+        <p class="text-sm text-slate-500">Scan customer voucher QR codes to activate benefits</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- Scanner Section -->
+  <section class="rounded-2xl border bg-white p-6 shadow-sm">
+    <div class="text-center">
+      <!-- Scanner Button -->
+      <button 
+        x-show="!scannerActive"
+        @click="startScanner()"
+        class="w-full rounded-2xl border-2 border-dashed border-blue-600 bg-blue-50 p-8 text-center transition-colors hover:bg-blue-100"
+      >
+        <div class="flex flex-col items-center gap-4">
+          <div class="grid h-20 w-20 place-items-center rounded-full bg-blue-600 text-white">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" class="h-10 w-10" fill="currentColor">
+              <path d="M3 11h8V3H3v8zm2-6h4v4H5V5zm8-2v8h8V3h-8zm6 6h-4V5h4v4zM3 21h8v-8H3v8zm2-6h4v4H5v-4zm8 4h2v2h-2zm4-8h2v2h-2zm0 4h2v2h-2zm-4 0h2v2h-2zm-4-4h2v2h-2zm8 8h2v2h-2zm-4 0h2v2h-2z"/>
+            </svg>
+          </div>
+          <div>
+            <p class="text-lg font-semibold text-blue-900">Start Scanner</p>
+            <p class="text-sm text-blue-700">Click to scan customer voucher QR code</p>
+          </div>
+        </div>
+      </button>
+
+      <!-- Camera View -->
+      <div x-show="scannerActive" class="space-y-4">
+        <div class="relative mx-auto h-80 w-full max-w-md overflow-hidden rounded-2xl border-2 border-blue-600 bg-black">
+          <video 
+            x-ref="video" 
+            class="h-full w-full object-cover"
+            autoplay
+            playsinline
+          ></video>
+          
+          <!-- Scanner overlay -->
+          <div class="absolute inset-0 flex items-center justify-center">
+            <div class="h-64 w-64 rounded-lg border-2 border-white shadow-lg"></div>
+          </div>
+          
+          <!-- Status message -->
+          <div class="absolute bottom-2 left-2 right-2 rounded-lg bg-black/80 px-3 py-2 text-center text-white text-sm">
+            <span x-text="statusMessage"></span>
+          </div>
+        </div>
+        
+        <div class="flex gap-2">
+          <button 
+            @click="stopScanner()"
+            class="flex-1 rounded-xl bg-red-600 px-4 py-2 text-sm font-semibold text-white"
+          >
+            Stop Scanner
+          </button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Manual Input -->
+  <section class="rounded-2xl border bg-white p-6 shadow-sm">
+    <h3 class="text-sm font-semibold text-slate-900 mb-3">Manual Input</h3>
+    <div class="flex gap-2">
+      <input 
+        type="text" 
+        x-model="manualCode"
+        @keyup.enter="processVoucherCode(manualCode)"
+        placeholder="Enter voucher QR data manually..."
+        class="flex-1 rounded-xl border border-slate-300 px-3 py-2 text-sm placeholder:text-slate-500 focus:border-blue-600 focus:outline-none"
+      />
+      <button 
+        @click="processVoucherCode(manualCode)"
+        :disabled="!manualCode.trim()"
+        class="rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white disabled:bg-slate-300 disabled:cursor-not-allowed"
+      >
+        Process
+      </button>
+    </div>
+  </section>
+
+  <!-- Voucher Details -->
+  <section x-show="voucherData" class="rounded-2xl border bg-white p-6 shadow-sm">
+    <div class="flex items-center gap-2 mb-4">
+      <div class="grid h-8 w-8 place-items-center rounded-full bg-green-100 text-green-600">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" class="h-4 w-4" fill="currentColor">
+          <path d="M9 16.17 4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
+        </svg>
+      </div>
+      <h3 class="text-lg font-semibold text-slate-900">Voucher Details</h3>
+    </div>
+
+    <div class="space-y-4">
+      <!-- Voucher Info -->
+      <div class="rounded-xl bg-slate-50 p-4">
+        <div class="grid grid-cols-2 gap-4 text-sm">
+          <div>
+            <p class="font-medium text-slate-600">Voucher Name</p>
+            <p class="text-slate-900" x-text="voucherData?.name || 'Unknown'"></p>
+          </div>
+          <div>
+            <p class="font-medium text-slate-600">Voucher Code</p>
+            <p class="font-mono text-slate-900" x-text="voucherData?.slug || 'Unknown'"></p>
+          </div>
+          <div>
+            <p class="font-medium text-slate-600">Wallet Address</p>
+            <p class="font-mono text-xs text-slate-900" x-text="voucherData?.wallet_address || 'Unknown'"></p>
+          </div>
+          <div>
+            <p class="font-medium text-slate-600">Balance</p>
+            <p class="text-slate-900" x-text="voucherData?.balance || '0'"></p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Validation Status -->
+      <div class="rounded-xl p-4" :class="voucherData?.is_valid ? 'bg-green-50 border border-green-200' : 'bg-red-50 border border-red-200'">
+        <div class="flex items-center gap-2">
+          <div class="grid h-6 w-6 place-items-center rounded-full" :class="voucherData?.is_valid ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-600'">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" class="h-4 w-4" fill="currentColor">
+              <path d="M9 16.17 4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" x-show="voucherData?.is_valid"/>
+              <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" x-show="!voucherData?.is_valid"/>
+            </svg>
+          </div>
+          <p class="font-medium" :class="voucherData?.is_valid ? 'text-green-800' : 'text-red-800'">
+            <span x-text="voucherData?.is_valid ? 'Valid Voucher' : 'Invalid Voucher'"></span>
+          </p>
+        </div>
+        <p class="mt-1 text-sm" :class="voucherData?.is_valid ? 'text-green-700' : 'text-red-700'" x-text="voucherData?.status_message || ''"></p>
+      </div>
+
+      <!-- Action Buttons -->
+      <div class="flex gap-2" x-show="voucherData?.is_valid">
+        <button 
+          @click="confirmRedemption()"
+          :disabled="processing"
+          class="flex-1 rounded-xl bg-green-600 px-4 py-3 text-sm font-semibold text-white disabled:bg-slate-300 disabled:cursor-not-allowed"
+        >
+          <span x-show="!processing">Confirm Redemption</span>
+          <span x-show="processing">Processing...</span>
+        </button>
+        <button 
+          @click="clearVoucherData()"
+          class="rounded-xl border border-slate-300 px-4 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+        >
+          Clear
+        </button>
+      </div>
+    </div>
+  </section>
+
+  <!-- Success/Error Messages -->
+  <div x-show="message" class="rounded-2xl border p-4" :class="messageType === 'success' ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'">
+    <div class="flex items-center gap-2">
+      <div class="grid h-6 w-6 place-items-center rounded-full" :class="messageType === 'success' ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-600'">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" class="h-4 w-4" fill="currentColor">
+          <path d="M9 16.17 4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" x-show="messageType === 'success'"/>
+          <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" x-show="messageType === 'error'"/>
+        </svg>
+      </div>
+      <p class="font-medium" :class="messageType === 'success' ? 'text-green-800' : 'text-red-800'" x-text="message"></p>
+    </div>
+  </div>
+</div>
+
+<script>
+function posScannerView() {
+  return {
+    scannerActive: false,
+    stream: null,
+    statusMessage: 'Click "Start Scanner" to begin',
+    manualCode: '',
+    voucherData: null,
+    processing: false,
+    message: '',
+    messageType: '',
+
+    init() {
+      // Initialize scanner
+    },
+
+    async startScanner() {
+      try {
+        this.scannerActive = true;
+        this.statusMessage = 'Starting camera...';
+        
+        // Get camera stream
+        this.stream = await navigator.mediaDevices.getUserMedia({ 
+          video: { 
+            facingMode: 'environment',
+            width: { ideal: 1280 },
+            height: { ideal: 720 }
+          } 
+        });
+        
+        this.$refs.video.srcObject = this.stream;
+        this.statusMessage = 'Camera active. Point at voucher QR code.';
+        
+        // Start scanning loop
+        this.startScanningLoop();
+        
+      } catch (error) {
+        this.scannerActive = false;
+        this.statusMessage = 'Camera access denied. Use manual input.';
+        this.showMessage('Camera access denied. Please use manual input.', 'error');
+        console.error('Camera error:', error);
+      }
+    },
+
+    startScanningLoop() {
+      if (!this.scannerActive) return;
+      
+      // Use jsQR to detect QR codes
+      const video = this.$refs.video;
+      const canvas = document.createElement('canvas');
+      const context = canvas.getContext('2d');
+      
+      if (video.readyState >= 2) {
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        context.drawImage(video, 0, 0, canvas.width, canvas.height);
+        
+        const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
+        const code = jsQR(imageData.data, imageData.width, imageData.height);
+        
+        if (code) {
+          console.log('QR Code detected:', code.data);
+          this.processVoucherCode(code.data);
+          return;
+        }
+      }
+      
+      // Continue scanning
+      setTimeout(() => {
+        if (this.scannerActive) {
+          this.startScanningLoop();
+        }
+      }, 100);
+    },
+
+    stopScanner() {
+      if (this.stream) {
+        this.stream.getTracks().forEach(track => track.stop());
+        this.stream = null;
+      }
+      this.scannerActive = false;
+      this.statusMessage = 'Scanner stopped.';
+    },
+
+    async processVoucherCode(qrData) {
+      if (!qrData || !qrData.trim()) return;
+      
+      this.processing = true;
+      this.clearMessage();
+      
+      try {
+        // Parse QR code data
+        let voucherSlug, walletAddress;
+        
+        if (qrData.startsWith('voucher:')) {
+          // Format: "voucher:spa-30off-2025:0x1234..."
+          const parts = qrData.split(':');
+          if (parts.length >= 3) {
+            voucherSlug = parts[1];
+            walletAddress = parts[2];
+          }
+        } else {
+          // Try to extract from other formats
+          this.showMessage('Invalid QR code format. Expected voucher:slug:address', 'error');
+          return;
+        }
+        
+        if (!voucherSlug || !walletAddress) {
+          this.showMessage('Could not parse voucher information from QR code', 'error');
+          return;
+        }
+        
+        // Validate voucher
+        await this.validateVoucher(voucherSlug, walletAddress);
+        
+      } catch (error) {
+        this.showMessage('Error processing voucher: ' + error.message, 'error');
+        console.error('Process error:', error);
+      } finally {
+        this.processing = false;
+      }
+    },
+
+    async validateVoucher(voucherSlug, walletAddress) {
+      try {
+        const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]')?.value || '';
+        
+        const response = await fetch('/adv1/admin/pos/validate-voucher', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': csrfToken,
+            'Accept': 'application/json'
+          },
+          body: JSON.stringify({
+            voucher_slug: voucherSlug,
+            wallet_address: walletAddress
+          })
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok && data.success) {
+          this.voucherData = {
+            name: data.voucher_name,
+            slug: voucherSlug,
+            wallet_address: walletAddress,
+            balance: data.balance,
+            is_valid: data.is_valid,
+            status_message: data.message
+          };
+          
+          if (data.is_valid) {
+            this.showMessage('Voucher validated successfully!', 'success');
+          } else {
+            this.showMessage(data.message, 'error');
+          }
+        } else {
+          this.showMessage(data.message || 'Failed to validate voucher', 'error');
+        }
+        
+      } catch (error) {
+        this.showMessage('Network error while validating voucher', 'error');
+        console.error('Validation error:', error);
+      }
+    },
+
+    async confirmRedemption() {
+      if (!this.voucherData || !this.voucherData.is_valid) return;
+      
+      this.processing = true;
+      
+      try {
+        const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]')?.value || '';
+        
+        const response = await fetch('/adv1/admin/pos/confirm-redemption', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': csrfToken,
+            'Accept': 'application/json'
+          },
+          body: JSON.stringify({
+            voucher_slug: this.voucherData.slug,
+            wallet_address: this.voucherData.wallet_address
+          })
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok && data.success) {
+          this.showMessage('Voucher redeemed successfully!', 'success');
+          this.clearVoucherData();
+        } else {
+          this.showMessage(data.message || 'Failed to redeem voucher', 'error');
+        }
+        
+      } catch (error) {
+        this.showMessage('Network error while redeeming voucher', 'error');
+        console.error('Redemption error:', error);
+      } finally {
+        this.processing = false;
+      }
+    },
+
+    clearVoucherData() {
+      this.voucherData = null;
+      this.manualCode = '';
+      this.clearMessage();
+    },
+
+    showMessage(text, type) {
+      this.message = text;
+      this.messageType = type;
+      
+      // Auto-hide success messages after 5 seconds
+      if (type === 'success') {
+        setTimeout(() => {
+          this.clearMessage();
+        }, 5000);
+      }
+    },
+
+    clearMessage() {
+      this.message = '';
+      this.messageType = '';
+    }
+  };
+}
+</script>
+{% endblock %}

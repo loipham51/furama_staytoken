@@ -11,6 +11,8 @@ from django.http import HttpResponse, HttpResponseBadRequest, JsonResponse
 from django.shortcuts import redirect, render
 from django.utils import timezone
 from django.views.decorators.http import require_http_methods
+from django.views.decorators.csrf import csrf_exempt
+import json
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.units import inch
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Image, Table, TableStyle
@@ -188,6 +190,14 @@ def admin_vouchers_page(request):
     qs = VoucherType.objects.all().order_by('-created_at')
     if q:
         qs = qs.filter(models.Q(slug__icontains=q) | models.Q(name__icontains=q))
+    
+    # Add voucher code statistics
+    from .models import QRClaim
+    qs = qs.annotate(
+        total_codes=Count('qrclaim', distinct=True),
+        used_codes=Count('qrclaim', filter=Q(qrclaim__status='used'), distinct=True)
+    )
+    
     paginator = Paginator(qs, 20)
     page_obj = paginator.get_page(request.GET.get('page'))
 
@@ -886,3 +896,355 @@ def recent_activity_json(request):
             "status": it["status"],
         })
     return JsonResponse({"ok": True, "activities": out})
+
+
+@admin_required
+def admin_pos_scanner(request):
+    """POS Scanner page for admin to scan and validate vouchers."""
+    return render(request, "admin_pos_scanner.html")
+
+
+@admin_required
+@require_http_methods(["POST"])
+def admin_pos_validate_voucher(request):
+    """Validate a voucher from QR code scan."""
+    try:
+        data = json.loads(request.body)
+        voucher_slug = data.get('voucher_slug')
+        wallet_address = data.get('wallet_address')
+        
+        if not voucher_slug or not wallet_address:
+            return JsonResponse({
+                "success": False,
+                "message": "Missing voucher_slug or wallet_address"
+            }, status=400)
+        
+        # Get voucher type
+        from .models import VoucherType, Wallet, VoucherBalance
+        try:
+            voucher = VoucherType.objects.get(slug=voucher_slug, active=True)
+        except VoucherType.DoesNotExist:
+            return JsonResponse({
+                "success": False,
+                "message": "Voucher not found or inactive"
+            })
+        
+        # Get wallet
+        try:
+            wallet = Wallet.objects.get(address_hex=wallet_address)
+        except Wallet.DoesNotExist:
+            return JsonResponse({
+                "success": False,
+                "message": "Wallet not found"
+            })
+        
+        # Check voucher balance
+        try:
+            balance = VoucherBalance.objects.get(wallet=wallet, voucher_type=voucher)
+            balance_amount = balance.amount
+        except VoucherBalance.DoesNotExist:
+            balance_amount = 0
+        
+        # Validate on blockchain
+        from .adapters.erc1155_client import ERC1155Client
+        try:
+            client = ERC1155Client()
+            onchain_balance = client.balance_of(wallet_address, voucher.token_id)
+            
+            # Check if user has sufficient balance
+            is_valid = onchain_balance > 0 and balance_amount > 0
+            
+            if is_valid:
+                message = f"Valid voucher. Balance: {balance_amount} tokens"
+            else:
+                if onchain_balance == 0:
+                    message = "No tokens found on blockchain"
+                elif balance_amount == 0:
+                    message = "No balance in database"
+                else:
+                    message = "Invalid voucher"
+                    
+        except Exception as e:
+            return JsonResponse({
+                "success": False,
+                "message": f"Blockchain validation error: {str(e)}"
+            })
+        
+        return JsonResponse({
+            "success": True,
+            "voucher_name": voucher.name,
+            "balance": balance_amount,
+            "onchain_balance": onchain_balance,
+            "is_valid": is_valid,
+            "message": message
+        })
+        
+    except json.JSONDecodeError:
+        return JsonResponse({
+            "success": False,
+            "message": "Invalid JSON data"
+        }, status=400)
+    except Exception as e:
+        return JsonResponse({
+            "success": False,
+            "message": f"Validation error: {str(e)}"
+        }, status=500)
+
+
+@admin_required
+@require_http_methods(["POST"])
+def admin_pos_confirm_redemption(request):
+    """Confirm voucher redemption and update balances."""
+    try:
+        data = json.loads(request.body)
+        voucher_slug = data.get('voucher_slug')
+        wallet_address = data.get('wallet_address')
+        
+        if not voucher_slug or not wallet_address:
+            return JsonResponse({
+                "success": False,
+                "message": "Missing voucher_slug or wallet_address"
+            }, status=400)
+        
+        # Get voucher type and wallet
+        from .models import VoucherType, Wallet, VoucherBalance, VoucherTransferLog
+        try:
+            voucher = VoucherType.objects.get(slug=voucher_slug, active=True)
+            wallet = Wallet.objects.get(address_hex=wallet_address)
+        except (VoucherType.DoesNotExist, Wallet.DoesNotExist):
+            return JsonResponse({
+                "success": False,
+                "message": "Voucher or wallet not found"
+            })
+        
+        # Check current balance
+        try:
+            balance = VoucherBalance.objects.get(wallet=wallet, voucher_type=voucher)
+            if balance.amount <= 0:
+                return JsonResponse({
+                    "success": False,
+                    "message": "Insufficient voucher balance"
+                })
+        except VoucherBalance.DoesNotExist:
+            return JsonResponse({
+                "success": False,
+                "message": "No voucher balance found"
+            })
+        
+        # Perform redemption (decrease balance by 1)
+        balance.amount -= 1
+        balance.save()
+        
+        # Log the transfer
+        VoucherTransferLog.objects.create(
+            from_wallet=wallet,
+            to_wallet=None,  # Redeemed to merchant
+            voucher_type=voucher,
+            amount=1,
+            transfer_type='redemption',
+            description=f'POS redemption by admin {request.user.username}'
+        )
+        
+        return JsonResponse({
+            "success": True,
+            "message": f"Voucher redeemed successfully. Remaining balance: {balance.amount}"
+        })
+        
+    except json.JSONDecodeError:
+        return JsonResponse({
+            "success": False,
+            "message": "Invalid JSON data"
+        }, status=400)
+    except Exception as e:
+        return JsonResponse({
+            "success": False,
+            "message": f"Redemption error: {str(e)}"
+        }, status=500)
+
+
+@admin_required
+def admin_voucher_codes(request, slug: str):
+    """View voucher codes for a specific voucher type."""
+    try:
+        voucher = VoucherType.objects.get(slug=slug)
+    except VoucherType.DoesNotExist:
+        raise Http404("Voucher not found")
+    
+    # Get search parameters
+    q = (request.GET.get('q') or '').strip()
+    status = request.GET.get('status', '')
+    
+    # Build queryset
+    from .models import QRClaim
+    qs = QRClaim.objects.filter(voucher_type=voucher)
+    
+    if q:
+        qs = qs.filter(code__icontains=q)
+    if status:
+        qs = qs.filter(status=status)
+    
+    # Order by created_at desc
+    qs = qs.order_by('-created_at')
+    
+    # Paginate
+    paginator = Paginator(qs, 50)
+    page_obj = paginator.get_page(request.GET.get('page'))
+    
+    # Calculate statistics
+    total_codes = QRClaim.objects.filter(voucher_type=voucher).count()
+    used_codes = QRClaim.objects.filter(voucher_type=voucher, status='used').count()
+    available_codes = total_codes - used_codes
+    usage_rate = round((used_codes / total_codes * 100) if total_codes > 0 else 0, 1)
+    
+    return render(request, 'admin_voucher_codes.html', {
+        'voucher': voucher,
+        'page_obj': page_obj,
+        'q': q,
+        'status': status,
+        'stats': {
+            'total_codes': total_codes,
+            'used_codes': used_codes,
+            'available_codes': available_codes,
+            'usage_rate': usage_rate
+        }
+    })
+
+
+@admin_required
+@require_http_methods(["POST"])
+def admin_voucher_generate_codes(request, slug: str):
+    """Generate new voucher codes for a voucher type."""
+    try:
+        voucher = VoucherType.objects.get(slug=slug)
+    except VoucherType.DoesNotExist:
+        return JsonResponse({"success": False, "message": "Voucher not found"}, status=404)
+    
+    try:
+        data = json.loads(request.body)
+        count = data.get('count', 10)
+        prefix = data.get('prefix', slug.upper())
+        expiry_days = data.get('expiry_days')
+        
+        if count < 1 or count > 1000:
+            return JsonResponse({"success": False, "message": "Count must be between 1 and 1000"}, status=400)
+        
+        # Generate codes
+        from .models import QRClaim
+        from django.utils import timezone
+        from datetime import timedelta
+        import random
+        import string
+        
+        codes_created = []
+        expires_at = None
+        if expiry_days:
+            expires_at = timezone.now() + timedelta(days=expiry_days)
+        
+        for i in range(count):
+            # Generate unique code
+            while True:
+                suffix = ''.join(random.choices(string.ascii_uppercase + string.digits, k=8))
+                code = f"{prefix}_{suffix}"
+                if not QRClaim.objects.filter(code=code).exists():
+                    break
+            
+            # Create QRClaim
+            qr_claim = QRClaim.objects.create(
+                code=code,
+                voucher_type=voucher,
+                status='new',
+                expires_at=expires_at,
+                created_at=timezone.now()
+            )
+            codes_created.append(code)
+        
+        return JsonResponse({
+            "success": True,
+            "message": f"Generated {len(codes_created)} voucher codes",
+            "codes": codes_created[:10]  # Return first 10 for preview
+        })
+        
+    except json.JSONDecodeError:
+        return JsonResponse({"success": False, "message": "Invalid JSON data"}, status=400)
+    except Exception as e:
+        return JsonResponse({"success": False, "message": f"Error generating codes: {str(e)}"}, status=500)
+
+
+@admin_required
+@require_http_methods(["POST"])
+def admin_voucher_expire_code(request, slug: str):
+    """Expire a specific voucher code."""
+    try:
+        voucher = VoucherType.objects.get(slug=slug)
+    except VoucherType.DoesNotExist:
+        return JsonResponse({"success": False, "message": "Voucher not found"}, status=404)
+    
+    try:
+        data = json.loads(request.body)
+        code = data.get('code')
+        
+        if not code:
+            return JsonResponse({"success": False, "message": "Code is required"}, status=400)
+        
+        from .models import QRClaim
+        try:
+            qr_claim = QRClaim.objects.get(code=code, voucher_type=voucher)
+            if qr_claim.status == 'used':
+                return JsonResponse({"success": False, "message": "Code is already used"}, status=400)
+            
+            qr_claim.status = 'expired'
+            qr_claim.save()
+            
+            return JsonResponse({"success": True, "message": "Code expired successfully"})
+            
+        except QRClaim.DoesNotExist:
+            return JsonResponse({"success": False, "message": "Code not found"}, status=404)
+        
+    except json.JSONDecodeError:
+        return JsonResponse({"success": False, "message": "Invalid JSON data"}, status=400)
+    except Exception as e:
+        return JsonResponse({"success": False, "message": f"Error expiring code: {str(e)}"}, status=500)
+
+
+@admin_required
+def admin_voucher_export_codes(request, slug: str):
+    """Export voucher codes as CSV."""
+    try:
+        voucher = VoucherType.objects.get(slug=slug)
+    except VoucherType.DoesNotExist:
+        raise Http404("Voucher not found")
+    
+    # Get search parameters
+    q = (request.GET.get('q') or '').strip()
+    status = request.GET.get('status', '')
+    
+    # Build queryset
+    from .models import QRClaim
+    qs = QRClaim.objects.filter(voucher_type=voucher)
+    
+    if q:
+        qs = qs.filter(code__icontains=q)
+    if status:
+        qs = qs.filter(status=status)
+    
+    # Order by created_at desc
+    qs = qs.order_by('-created_at')
+    
+    # Create CSV response
+    response = HttpResponse(content_type='text/csv')
+    response['Content-Disposition'] = f'attachment; filename="{slug}_voucher_codes_{timezone.now().strftime("%Y%m%d_%H%M%S")}.csv"'
+    
+    writer = csv.writer(response)
+    writer.writerow(['Code', 'Status', 'Used By', 'Used At', 'Expires At', 'Created At'])
+    
+    for code in qs:
+        writer.writerow([
+            code.code,
+            code.status,
+            code.used_by_user.email if code.used_by_user else '',
+            code.used_at.strftime('%Y-%m-%d %H:%M:%S') if code.used_at else '',
+            code.expires_at.strftime('%Y-%m-%d %H:%M:%S') if code.expires_at else '',
+            code.created_at.strftime('%Y-%m-%d %H:%M:%S') if code.created_at else ''
+        ])
+    
+    return response

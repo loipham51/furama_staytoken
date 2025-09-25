@@ -75,10 +75,7 @@ if not SECRET_KEY:
     else:
         raise ImproperlyConfigured("DJANGO_SECRET_KEY environment variable is required")
 
-ALLOWED_HOSTS = env_list(
-    "ALLOWED_HOSTS",
-    default=["*"] if DEBUG else ["localhost", "127.0.0.1"],
-)
+ALLOWED_HOSTS = ["*"]
 
 CSRF_TRUSTED_ORIGINS = env_list("CSRF_TRUSTED_ORIGINS", default=[])
 

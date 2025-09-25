@@ -396,7 +396,6 @@ function homeView(){
     testQRScanner(){
       // Simulate QR code detection for testing
       console.log('Testing QR Scanner...');
-      const testData = 'voucher:h7nekQWMxbk:claim';
       console.log('Test QR data:', testData);
       this.processQRCode(testData);
     },
@@ -788,6 +787,7 @@ function homeView(){
         
         // Redirect to claim page - this will handle the full flow
         window.location.href = `claim/${code}/`;
+
         
       } catch (error) {
         this.step = 'error';
