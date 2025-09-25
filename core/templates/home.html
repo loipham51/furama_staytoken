@@ -3,6 +3,33 @@
 {% block content %}
 {% csrf_token %}
 <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
+<script>
+  // Ensure libraries are loaded
+  window.addEventListener('load', function() {
+    if (typeof jsQR === 'undefined') {
+      console.error('jsQR library failed to load');
+    } else {
+      console.log('jsQR library loaded successfully');
+    }
+    
+    if (typeof qrcode === 'undefined') {
+      console.error('qrcode library failed to load');
+    } else {
+      console.log('qrcode library loaded successfully');
+    }
+  });
+  
+  // Also check after a delay
+  setTimeout(function() {
+    if (typeof jsQR === 'undefined') {
+      console.error('jsQR library still not loaded after delay');
+    }
+    if (typeof qrcode === 'undefined') {
+      console.error('qrcode library still not loaded after delay');
+    }
+  }, 3000);
+</script>
 {{ available_vouchers|json_script:"available-vouchers" }}
 <div x-data="homeView()" x-init="init()" class="mx-auto flex max-w-md flex-col gap-5 px-4 pb-16 pt-6">
   <!-- QR Code Scanner Section -->
@@ -95,6 +122,21 @@
             class="rounded-xl bg-[#15803d] px-4 py-2 text-sm font-semibold text-white disabled:bg-slate-300 disabled:cursor-not-allowed"
           >
             Claim
+          </button>
+        </div>
+        
+        <!-- Test QR Code -->
+        <div class="mt-4 text-center">
+          <p class="text-xs text-[#166534]/60 mb-2">Test QR Code:</p>
+          <div class="inline-block p-2 bg-white border border-gray-300 rounded">
+            <div id="test-qr-code" class="w-32 h-32"></div>
+          </div>
+          <p class="text-xs text-[#166534]/60 mt-2">Scan this test QR code to verify scanner works</p>
+          <button 
+            @click="testQRScanner()"
+            class="mt-2 rounded-lg bg-blue-500 px-3 py-1 text-xs text-white hover:bg-blue-600"
+          >
+            Test QR Scanner (Simulate)
           </button>
         </div>
       </div>
@@ -298,6 +340,65 @@ function homeView(){
           this.walletStatus = 'Unable to load wallet info. Please sign in again.';
           this.loggedIn = false;
         });
+        
+      // Generate test QR code
+      this.generateTestQR();
+      
+      // Fallback if qrcode library fails
+      setTimeout(() => {
+        if (typeof qrcode === 'undefined') {
+          console.log('Using fallback QR code generation');
+          this.generateTestQRCanvas();
+        }
+      }, 5000);
+    },
+    
+    generateTestQR(){
+      // Create a test QR code
+      if (typeof qrcode !== 'undefined') {
+        const testData = 'voucher:spa-30off-2025:claim';
+        const qrContainer = document.getElementById('test-qr-code');
+        if (qrContainer) {
+          qrContainer.innerHTML = '';
+          const qr = qrcode.make(testData);
+          qrContainer.appendChild(qr);
+        }
+      } else {
+        console.log('qrcode library not loaded yet, will retry...');
+        // Try again after a longer delay
+        setTimeout(() => this.generateTestQR(), 2000);
+      }
+    },
+    
+    // Alternative QR code generation using canvas
+    generateTestQRCanvas(){
+      const testData = 'voucher:spa-30off-2025:claim';
+      const qrContainer = document.getElementById('test-qr-code');
+      if (qrContainer) {
+        qrContainer.innerHTML = '';
+        const canvas = document.createElement('canvas');
+        canvas.width = 128;
+        canvas.height = 128;
+        const ctx = canvas.getContext('2d');
+        
+        // Simple QR code simulation
+        ctx.fillStyle = '#000';
+        ctx.fillRect(0, 0, 128, 128);
+        ctx.fillStyle = '#fff';
+        ctx.fillRect(8, 8, 112, 112);
+        ctx.fillStyle = '#000';
+        ctx.fillRect(16, 16, 96, 96);
+        
+        qrContainer.appendChild(canvas);
+      }
+    },
+    
+    testQRScanner(){
+      // Simulate QR code detection for testing
+      console.log('Testing QR Scanner...');
+      const testData = 'voucher:h7nekQWMxbk:claim';
+      console.log('Test QR data:', testData);
+      this.processQRCode(testData);
     },
 
     checkPendingVoucherCode(){
@@ -418,64 +519,190 @@ function homeView(){
 
     // QR Scanner functions
     startQRScanner(){
+      console.log('Starting QR Scanner...');
       // Check if device supports camera
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-        alert('Camera not supported on this device. Please use manual code input instead.');
+        this.statusMessage = 'Camera not supported on this device. Please use manual code input instead.';
         return;
       }
       
-      // Start camera and QR scanning
-      this.startCameraAndScan();
+      // Check if we're on HTTPS or localhost
+      const isSecure = location.protocol === 'https:' || location.hostname === 'localhost' || location.hostname === '127.0.0.1';
+      if (!isSecure) {
+        this.statusMessage = 'Camera requires HTTPS or localhost. Please use manual code input instead.';
+        return;
+      }
+      
+        // Check camera permissions
+        if (navigator.permissions) {
+          navigator.permissions.query({name: 'camera'}).then(result => {
+            if (result.state === 'denied') {
+              this.statusMessage = 'Camera permission denied. Please enable camera access in browser settings.';
+              return;
+            }
+          }).catch(err => {
+            console.log('Permission query failed:', err);
+          });
+        }
+        
+        // Check if camera is available
+        navigator.mediaDevices.enumerateDevices().then(devices => {
+          const videoDevices = devices.filter(device => device.kind === 'videoinput');
+          if (videoDevices.length === 0) {
+            this.statusMessage = 'No camera found. Please connect a camera and try again.';
+            return;
+          }
+          console.log('Found video devices:', videoDevices.length);
+        }).catch(err => {
+          console.log('Device enumeration failed:', err);
+        });
+        
+        // Add a small delay to allow permission checks
+        setTimeout(() => {
+          this.startCameraAndScan();
+        }, 100);
     },
 
     async startCameraAndScan(){
       try {
+        console.log('Starting camera...');
         this.qrScannerActive = true;
         this.statusMessage = 'Starting camera...';
         
-        // Get camera stream
-        this.stream = await navigator.mediaDevices.getUserMedia({ 
-          video: { 
-            facingMode: 'environment',
-            width: { ideal: 1280 },
-            height: { ideal: 720 }
-          } 
-        });
+        // Try different camera configurations
+        const constraints = [
+          { 
+            video: { 
+              facingMode: 'environment',
+              width: { ideal: 1280 },
+              height: { ideal: 720 }
+            } 
+          },
+          { 
+            video: { 
+              facingMode: 'user',
+              width: { ideal: 1280 },
+              height: { ideal: 720 }
+            } 
+          },
+          { 
+            video: { 
+              width: { ideal: 640 },
+              height: { ideal: 480 }
+            } 
+          },
+          { 
+            video: { 
+              width: { ideal: 320 },
+              height: { ideal: 240 }
+            } 
+          },
+          { video: true }
+        ];
         
-        this.video.srcObject = this.stream;
-        this.statusMessage = 'Camera active. Point at QR code to scan.';
+        let stream = null;
+        for (const constraint of constraints) {
+          try {
+            console.log('Trying camera constraint:', constraint);
+            stream = await navigator.mediaDevices.getUserMedia(constraint);
+            console.log('Camera stream obtained with constraint:', constraint);
+            break;
+          } catch (err) {
+            console.log('Failed with constraint:', constraint, err);
+            continue;
+          }
+        }
         
-        // Start scanning loop
-        this.startScanningLoop();
+        if (!stream) {
+          throw new Error('No camera configuration worked');
+        }
+        
+        this.stream = stream;
+        
+        // Ensure video element exists
+        const video = this.$refs.video;
+        if (!video) {
+          console.error('Video element not found');
+          throw new Error('Video element not found');
+        }
+        
+        video.srcObject = this.stream;
+        
+        // Wait for video to be ready
+        video.onloadedmetadata = () => {
+          console.log('Video metadata loaded, starting scan loop...');
+          this.statusMessage = 'Camera active. Point at QR code to scan.';
+          // Start scanning loop after video is ready
+          setTimeout(() => {
+            if (this.qrScannerActive) {
+              this.startScanningLoop();
+            }
+          }, 500);
+        };
         
       } catch (error) {
         this.qrScannerActive = false;
         this.statusMessage = 'Camera access denied. Use manual input below.';
         console.error('Camera error:', error);
+        
+        // Don't show alert, just update status
+        console.log('Camera access failed, falling back to manual input');
+        
+        // Show helpful message
+        if (error.name === 'NotAllowedError') {
+          this.statusMessage = 'Camera permission denied. Please allow camera access and try again.';
+        } else if (error.name === 'NotFoundError') {
+          this.statusMessage = 'No camera found. Please connect a camera and try again.';
+        } else if (error.name === 'NotReadableError') {
+          this.statusMessage = 'Camera is being used by another application. Please close other apps and try again.';
+        } else {
+          this.statusMessage = 'Camera access failed. Please use manual code input instead.';
+        }
       }
     },
 
     startScanningLoop(){
       if (!this.qrScannerActive) return;
       
+      // Check if jsQR is available
+      if (typeof jsQR === 'undefined') {
+        console.error('jsQR library not loaded');
+        this.statusMessage = 'QR scanner library not loaded. Please refresh the page.';
+        return;
+      }
+      
       // Use jsQR to detect QR codes
       const video = this.$refs.video;
+      if (!video) {
+        console.error('Video element not found in startScanningLoop');
+        this.statusMessage = 'Video element not found. Please refresh the page.';
+        return;
+      }
+      
+      if (video.readyState < 2) {
+        // Video not ready yet, try again
+        setTimeout(() => {
+          if (this.qrScannerActive) {
+            this.startScanningLoop();
+          }
+        }, 100);
+        return;
+      }
+      
       const canvas = document.createElement('canvas');
       const context = canvas.getContext('2d');
       
-      if (video.readyState >= 2) {
-        canvas.width = video.videoWidth;
-        canvas.height = video.videoHeight;
-        context.drawImage(video, 0, 0, canvas.width, canvas.height);
-        
-        const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
-        const code = jsQR(imageData.data, imageData.width, imageData.height);
-        
-        if (code) {
-          console.log('QR Code detected:', code.data);
-          this.processQRCode(code.data);
-          return;
-        }
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      context.drawImage(video, 0, 0, canvas.width, canvas.height);
+      
+      const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
+      const code = jsQR(imageData.data, imageData.width, imageData.height);
+      
+      if (code) {
+        console.log('QR Code detected:', code.data);
+        this.processQRCode(code.data);
+        return;
       }
       
       // Continue scanning
@@ -499,8 +726,17 @@ function homeView(){
 
     async handleQRCode(qrData){
       // Parse QR code data
+      console.log('Processing QR code data:', qrData);
+      
+      // Validate QR data
+      if (!qrData || qrData.trim() === '') {
+        console.error('Empty QR code data');
+        this.statusMessage = 'Invalid QR code. Please try again.';
+        return;
+      }
+      
       // Expected format: "voucher:spa-30off-2025:claim" or just "spa-30off-2025_abc123"
-      let voucherCode = qrData;
+      let voucherCode = qrData.trim();
       
       // If it's a voucher QR format, extract the code
       if (qrData.startsWith('voucher:')) {
@@ -509,6 +745,15 @@ function homeView(){
           voucherCode = parts[1]; // Extract voucher slug
         }
       }
+      
+      // Validate voucher code
+      if (!voucherCode || voucherCode.trim() === '') {
+        console.error('Empty voucher code after parsing');
+        this.statusMessage = 'Invalid voucher code. Please try again.';
+        return;
+      }
+      
+      console.log('Processed voucher code:', voucherCode);
       
       // Check if user is logged in
       if (!this.loggedIn) {
@@ -525,6 +770,15 @@ function homeView(){
 
     async claimVoucher(code){
       try {
+        console.log('Claiming voucher with code:', code);
+        
+        // Validate code before proceeding
+        if (!code || code.trim() === '') {
+          console.error('Empty voucher code in claimVoucher');
+          this.statusMessage = 'Invalid voucher code. Please try again.';
+          return;
+        }
+        
         this.statusMessage = 'Processing voucher...';
         
         // Show loading modal
@@ -533,7 +787,7 @@ function homeView(){
         this.modalOpen = true;
         
         // Redirect to claim page - this will handle the full flow
-        window.location.href = `/claim/${code}/`;
+        window.location.href = `claim/${code}/`;
         
       } catch (error) {
         this.step = 'error';
@@ -554,7 +808,12 @@ function homeView(){
     // Manual code claim
     async claimByCode(){
       const code = this.manualCode.trim();
-      if (!code) return;
+      if (!code) {
+        this.statusMessage = 'Please enter a voucher code.';
+        return;
+      }
+      
+      console.log('Manual claim with code:', code);
       
       // Check if user is logged in
       if (!this.loggedIn) {
