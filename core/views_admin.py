@@ -11,6 +11,8 @@ from django.http import HttpResponse, HttpResponseBadRequest, JsonResponse
 from django.shortcuts import redirect, render
 from django.utils import timezone
 from django.views.decorators.http import require_http_methods
+from django.views.decorators.csrf import csrf_exempt
+import json
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.units import inch
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Image, Table, TableStyle
@@ -886,3 +888,167 @@ def recent_activity_json(request):
             "status": it["status"],
         })
     return JsonResponse({"ok": True, "activities": out})
+
+
+@admin_required
+def admin_pos_scanner(request):
+    """POS Scanner page for admin to scan and validate vouchers."""
+    return render(request, "admin_pos_scanner.html")
+
+
+@admin_required
+@require_http_methods(["POST"])
+def admin_pos_validate_voucher(request):
+    """Validate a voucher from QR code scan."""
+    try:
+        data = json.loads(request.body)
+        voucher_slug = data.get('voucher_slug')
+        wallet_address = data.get('wallet_address')
+        
+        if not voucher_slug or not wallet_address:
+            return JsonResponse({
+                "success": False,
+                "message": "Missing voucher_slug or wallet_address"
+            }, status=400)
+        
+        # Get voucher type
+        from .models import VoucherType, Wallet, VoucherBalance
+        try:
+            voucher = VoucherType.objects.get(slug=voucher_slug, active=True)
+        except VoucherType.DoesNotExist:
+            return JsonResponse({
+                "success": False,
+                "message": "Voucher not found or inactive"
+            })
+        
+        # Get wallet
+        try:
+            wallet = Wallet.objects.get(address_hex=wallet_address)
+        except Wallet.DoesNotExist:
+            return JsonResponse({
+                "success": False,
+                "message": "Wallet not found"
+            })
+        
+        # Check voucher balance
+        try:
+            balance = VoucherBalance.objects.get(wallet=wallet, voucher_type=voucher)
+            balance_amount = balance.amount
+        except VoucherBalance.DoesNotExist:
+            balance_amount = 0
+        
+        # Validate on blockchain
+        from .adapters.erc1155_client import ERC1155Client
+        try:
+            client = ERC1155Client()
+            onchain_balance = client.balance_of(wallet_address, voucher.token_id)
+            
+            # Check if user has sufficient balance
+            is_valid = onchain_balance > 0 and balance_amount > 0
+            
+            if is_valid:
+                message = f"Valid voucher. Balance: {balance_amount} tokens"
+            else:
+                if onchain_balance == 0:
+                    message = "No tokens found on blockchain"
+                elif balance_amount == 0:
+                    message = "No balance in database"
+                else:
+                    message = "Invalid voucher"
+                    
+        except Exception as e:
+            return JsonResponse({
+                "success": False,
+                "message": f"Blockchain validation error: {str(e)}"
+            })
+        
+        return JsonResponse({
+            "success": True,
+            "voucher_name": voucher.name,
+            "balance": balance_amount,
+            "onchain_balance": onchain_balance,
+            "is_valid": is_valid,
+            "message": message
+        })
+        
+    except json.JSONDecodeError:
+        return JsonResponse({
+            "success": False,
+            "message": "Invalid JSON data"
+        }, status=400)
+    except Exception as e:
+        return JsonResponse({
+            "success": False,
+            "message": f"Validation error: {str(e)}"
+        }, status=500)
+
+
+@admin_required
+@require_http_methods(["POST"])
+def admin_pos_confirm_redemption(request):
+    """Confirm voucher redemption and update balances."""
+    try:
+        data = json.loads(request.body)
+        voucher_slug = data.get('voucher_slug')
+        wallet_address = data.get('wallet_address')
+        
+        if not voucher_slug or not wallet_address:
+            return JsonResponse({
+                "success": False,
+                "message": "Missing voucher_slug or wallet_address"
+            }, status=400)
+        
+        # Get voucher type and wallet
+        from .models import VoucherType, Wallet, VoucherBalance, VoucherTransferLog
+        try:
+            voucher = VoucherType.objects.get(slug=voucher_slug, active=True)
+            wallet = Wallet.objects.get(address_hex=wallet_address)
+        except (VoucherType.DoesNotExist, Wallet.DoesNotExist):
+            return JsonResponse({
+                "success": False,
+                "message": "Voucher or wallet not found"
+            })
+        
+        # Check current balance
+        try:
+            balance = VoucherBalance.objects.get(wallet=wallet, voucher_type=voucher)
+            if balance.amount <= 0:
+                return JsonResponse({
+                    "success": False,
+                    "message": "Insufficient voucher balance"
+                })
+        except VoucherBalance.DoesNotExist:
+            return JsonResponse({
+                "success": False,
+                "message": "No voucher balance found"
+            })
+        
+        # Perform redemption (decrease balance by 1)
+        balance.amount -= 1
+        balance.save()
+        
+        # Log the transfer
+        VoucherTransferLog.objects.create(
+            from_wallet=wallet,
+            to_wallet=None,  # Redeemed to merchant
+            voucher_type=voucher,
+            amount=1,
+            transfer_type='redemption',
+            description=f'POS redemption by admin {request.user.username}'
+        )
+        
+        return JsonResponse({
+            "success": True,
+            "message": f"Voucher redeemed successfully. Remaining balance: {balance.amount}"
+        })
+        
+    except json.JSONDecodeError:
+        return JsonResponse({
+            "success": False,
+            "message": "Invalid JSON data"
+        }, status=400)
+    except Exception as e:
+        return JsonResponse({
+            "success": False,
+            "message": f"Redemption error: {str(e)}"
+        }, status=500)
