@@ -25,17 +25,19 @@
   <section class="rounded-2xl border bg-white shadow-sm">
     <div class="overflow-x-auto">
       <div class="min-w-[600px]">
-        <div class="grid grid-cols-6 gap-0 border-b bg-slate-50 px-4 py-2 text-[11px] font-medium uppercase tracking-wide text-slate-500">
+        <div class="grid grid-cols-8 gap-0 border-b bg-slate-50 px-4 py-2 text-[11px] font-medium uppercase tracking-wide text-slate-500">
           <div>Slug</div>
           <div>Name</div>
           <div>Status</div>
           <div>Token ID</div>
+          <div>Codes</div>
+          <div>Used</div>
           <div>Created</div>
           <div></div>
         </div>
         <div class="divide-y">
           {% for it in page_obj.object_list %}
-          <div class="grid grid-cols-6 gap-2 px-4 py-3 text-sm" data-voucher-slug="{{ it.slug }}">
+          <div class="grid grid-cols-8 gap-2 px-4 py-3 text-sm" data-voucher-slug="{{ it.slug }}">
             <div class="truncate font-mono" title="{{ it.slug }}">{{ it.slug }}</div>
             <div class="truncate" title="{{ it.name }}">{{ it.name }}</div>
             <div>
@@ -46,9 +48,16 @@
               {% endif %}
             </div>
             <div class="font-mono">{{ it.token_id }}</div>
+            <div class="text-center">
+              <span class="rounded-full bg-blue-100 px-2 py-1 text-xs font-medium text-blue-800">{{ it.total_codes|default:0 }}</span>
+            </div>
+            <div class="text-center">
+              <span class="rounded-full bg-green-100 px-2 py-1 text-xs font-medium text-green-800">{{ it.used_codes|default:0 }}</span>
+            </div>
             <div>{{ it.created_at|date:'Y-m-d H:i'|default:"N/A" }}</div>
             <div class="flex items-center gap-2">
               <a href="/adv1/admin/vouchers/{{ it.slug }}/edit" class="rounded border px-2 py-1 text-xs">Edit</a>
+              <a href="/adv1/admin/vouchers/{{ it.slug }}/codes" class="rounded border px-2 py-1 text-xs text-blue-700">Codes</a>
               <form method="post" action="/adv1/admin/vouchers/{{ it.slug }}/delete" onsubmit="return confirm('Delete voucher {{ it.slug }}?');">
                 {% csrf_token %}
                 <button class="rounded border px-2 py-1 text-xs text-rose-700">Delete</button>

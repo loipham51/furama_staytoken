@@ -24,13 +24,18 @@ Hệ thống voucher onchain cho khách sạn Furama, sử dụng ERC-1155 token
 
 ### **User Side**
 - **Claim Vouchers**: Claim voucher qua QR code hoặc manual input
+- **Off-chain Vouchers**: Voucher được lưu trong database (QRClaim model)
 - **On-chain Minting**: Tự động mint ERC-1155 tokens khi claim
 - **Wallet Integration**: Tích hợp với custodial wallet
 - **Transaction Tracking**: Theo dõi tx_hash và explorer link
 
 ### **Admin Side**
 - **Voucher CRUD**: Tạo, sửa, xóa voucher types
+- **Voucher Codes Management**: Xem, tạo, quản lý voucher codes chi tiết
+- **Code Generation**: Tạo hàng loạt voucher codes với prefix và expiry
+- **Code Statistics**: Thống kê tổng số codes, đã sử dụng, còn lại
 - **QR Code Export**: Xuất danh sách voucher thành PDF với QR codes
+- **CSV Export**: Xuất voucher codes ra file CSV
 - **Balance Management**: Quản lý voucher balances
 
 ---
@@ -88,12 +93,14 @@ Hệ thống voucher onchain cho khách sạn Furama, sử dụng ERC-1155 token
 
 ## 🔄 **Workflows**
 
-### **Voucher Claiming Flow**
-1. User quét QR code hoặc nhập manual code
-2. System check authentication status
-3. Nếu chưa login → redirect to OTP auth
-4. Sau khi auth → auto claim và mint voucher
-5. Hiển thị transaction details và explorer link
+### **Voucher Claiming Flow (OFFCHAIN)**
+1. **Admin tạo voucher codes**: Tạo QRClaim records trong database với unique codes
+2. **User quét QR code**: QR code chứa voucher code (ví dụ: "SPA30OFF2025ABC123")
+3. **System tìm QRClaim**: Tìm trong database bằng code
+4. **System validate**: Kiểm tra status="new", chưa hết hạn, user chưa vượt limit
+5. **System mint**: Tự động mint ERC-1155 token cho user
+6. **System update**: Cập nhật QRClaim status="used", used_by_user, used_at
+7. **Hiển thị**: Transaction details và explorer link
 
 ### **POS Redemption Flow**
 1. Admin mở POS Scanner
@@ -104,9 +111,10 @@ Hệ thống voucher onchain cho khách sạn Furama, sử dụng ERC-1155 token
 6. System giảm balance và log transaction
 
 ### **QR Code Generation**
-- **Format**: `voucher:slug:wallet_address`
+- **Voucher Codes**: QR codes chứa voucher codes (ví dụ: "SPA30OFF2025ABC123")
 - **PDF Export**: Generate PDF với QR codes cho printing
 - **Caching**: Cache QR images để tối ưu performance
+- **Admin Generated**: Admin tạo QRClaim records với unique codes
 
 ---
 
@@ -140,6 +148,29 @@ Hệ thống voucher onchain cho khách sạn Furama, sử dụng ERC-1155 token
 - ✅ Improved QR scanning flow
 - ✅ Better error handling
 - ✅ Session storage for pending claims
+
+### **v1.3 - Admin Voucher Management**
+- ✅ Enhanced admin voucher list with code statistics
+- ✅ Detailed voucher codes management page
+- ✅ Bulk voucher code generation
+- ✅ Code expiry management
+- ✅ CSV export for voucher codes
+- ✅ Search and filter voucher codes
+
+### **v1.4 - Enhanced Admin UI**
+- ✅ Modern admin navigation with icons and animations
+- ✅ Professional branding with StayToken logo
+- ✅ Improved responsive design
+- ✅ Notification bell with indicator
+- ✅ User profile section with avatar
+- ✅ Smooth transitions and hover effects
+
+### **v1.5 - Mobile UI Fixes**
+- ✅ Fixed mobile navigation layout issues
+- ✅ Simplified mobile header design
+- ✅ Optimized mobile touch targets
+- ✅ Improved mobile scrolling behavior
+- ✅ Clean mobile navigation with proper spacing
 
 ---
 

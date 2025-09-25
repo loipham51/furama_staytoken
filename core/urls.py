@@ -13,6 +13,10 @@ urlpatterns = [
   path("adv1/admin/vouchers/new", views_admin.admin_voucher_new, name="admin_voucher_new"),
   path("adv1/admin/vouchers/<str:slug>/edit", views_admin.admin_voucher_edit, name="admin_voucher_edit"),
   path("adv1/admin/vouchers/<str:slug>/delete", views_admin.admin_voucher_delete, name="admin_voucher_delete"),
+  path("adv1/admin/vouchers/<str:slug>/codes", views_admin.admin_voucher_codes, name="admin_voucher_codes"),
+  path("adv1/admin/vouchers/<str:slug>/generate-codes", views_admin.admin_voucher_generate_codes, name="admin_voucher_generate_codes"),
+  path("adv1/admin/vouchers/<str:slug>/expire-code", views_admin.admin_voucher_expire_code, name="admin_voucher_expire_code"),
+  path("adv1/admin/vouchers/<str:slug>/export-codes", views_admin.admin_voucher_export_codes, name="admin_voucher_export_codes"),
   path("adv1/admin/vouchers/export-qr-pdf", views_admin.admin_voucher_export_qr_pdf, name="admin_voucher_export_qr_pdf"),
   
   # POS Scanner
