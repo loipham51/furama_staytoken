@@ -156,31 +156,12 @@ class VoucherBalance(models.Model):
         return f"{self.wallet_id} / {self.voucher_type_id} = {self.balance}"
 
 
-class VoucherTransferLog(models.Model):
-    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    from_wallet = models.ForeignKey("Wallet", null=True, on_delete=models.SET_NULL, db_column="from_wallet_id", related_name="+")
-    to_wallet = models.ForeignKey("Wallet", null=True, on_delete=models.SET_NULL, db_column="to_wallet_id", related_name="+")
-    voucher_type = models.ForeignKey("VoucherType", on_delete=models.CASCADE, db_column="voucher_type_id")
-    amount = models.BigIntegerField()
-    reason = models.CharField(max_length=40)                 # 'claim' | 'pos' | 'export' | ...
-    pos_ref = models.CharField(max_length=64, null=True, blank=True)
-    created_at = models.DateTimeField(null=True, blank=True)
-
-    class Meta:
-        db_table = "voucher_transfer_log"
-        managed = False
-        indexes = [
-            models.Index(fields=["voucher_type"], name="idx_vtlog_vtype_py"),
-            models.Index(fields=["created_at"], name="idx_vtlog_time_py"),
-        ]
-
-    def __str__(self):
-        return f"{self.reason} {self.amount} {self.voucher_type_id}"
+# VoucherTransferLog removed - using QRClaim for tracking instead
 
 
 class QRClaim(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    code = models.CharField(max_length=64, unique=True)
+    code = models.CharField(max_length=128, unique=True)
     voucher_type = models.ForeignKey("VoucherType", on_delete=models.CASCADE, db_column="voucher_type_id")
     event_label = models.CharField(max_length=64, null=True, blank=True)
     expires_at = models.DateTimeField(null=True, blank=True)

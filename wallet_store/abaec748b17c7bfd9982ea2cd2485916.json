@@ -1,0 +1,9 @@
+{
+  "provider": "custodial",
+  "user_external_id": "29f71814-7f10-4977-869e-6810c5d9cd11",
+  "chain_id": 11155111,
+  "address": "0x67e44820d543573c3cA68A3aC9D6e4Dd88Ddc6a1",
+  "private_key": "dd36c624d9d685fdc799284467e7077a5aaca9c992954826dfa01b61389b73fe",
+  "created_at": "2025-09-25T10:52:15.769383+00:00",
+  "exportable": false
+}

@@ -44,6 +44,7 @@ class RequireLoginMiddleware:
             request.headers.get("Accept", "").lower().startswith("application/json")
             or request.headers.get("X-Requested-With") == "XMLHttpRequest"
             or path.startswith("/api/")
+            or request.GET.get("format") == "json"
         )
         if wants_json:
             return JsonResponse({"ok": False, "error": "unauthorized"}, status=401)

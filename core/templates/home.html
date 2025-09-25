@@ -31,9 +31,9 @@
   }, 3000);
 </script>
 {{ available_vouchers|json_script:"available-vouchers" }}
-<div x-data="homeView()" x-init="init()" class="mx-auto flex max-w-md flex-col gap-5 px-4 pb-16 pt-6">
+<div x-data="homeView()" x-init="init()" class="mx-auto flex max-w-md flex-col gap-3 px-4 pb-5">
   <!-- QR Code Scanner Section -->
-  <section class="rounded-3xl border border-[#dfeee2] bg-white p-6 shadow-sm">
+  <section class="rounded-3xl border border-[#dfeee2] bg-white p-5 shadow-sm">
     <div class="flex items-start gap-3">
       <div class="grid h-12 w-12 place-items-center rounded-full bg-[#d9f2dd] text-[#166534]">
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" class="h-6 w-6" fill="currentColor" aria-hidden="true">
@@ -43,7 +43,7 @@
       <div class="min-w-0">
         <p class="text-xs font-semibold uppercase tracking-wide text-[#166534]/80">Furama Resort guests</p>
         <h1 class="mt-1 text-lg font-semibold text-[#14532d]">Claim your digital vouchers</h1>
-        <p class="mt-2 text-sm text-[#14532d]/80">Scan QR code or enter voucher code to claim your rewards. Mint on-chain via ERC-1155 and store in your custodial wallet.</p>
+        <p class="mt-2 text-sm text-[#14532d]/80">Scan QR code or enter voucher slug to claim your rewards. Mint on-chain via ERC-1155 and store in your custodial wallet.</p>
       </div>
     </div>
     
@@ -105,14 +105,14 @@
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" class="h-4 w-4 text-[#166534]" fill="currentColor" aria-hidden="true">
             <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-5 14H7v-2h7v2zm3-4H7v-2h10v2zm0-4H7V7h10v2z"/>
           </svg>
-          <p class="text-sm font-semibold text-[#14532d]">Or enter voucher code manually</p>
+          <p class="text-sm font-semibold text-[#14532d]">Or enter voucher slug manually</p>
         </div>
         <div class="flex gap-2">
           <input 
             type="text" 
             x-model="manualCode"
             @keyup.enter="claimByCode()"
-            placeholder="Enter voucher code..."
+            placeholder="Enter voucher slug..."
             class="flex-1 rounded-xl border border-[#e7f3ea] px-3 py-2 text-sm placeholder:text-[#166534]/50 focus:border-[#15803d] focus:outline-none"
           />
           <button 
@@ -129,9 +129,10 @@
     </div>
     
     <template x-if="demoMode">
-      <p class="mt-4 rounded-2xl bg-[#f1faf3] px-3 py-2 text-xs text-[#14532d]/80">Demo mode: Use any voucher code to simulate claim.</p>
+      <p class="mt-4 rounded-2xl bg-[#f1faf3] px-3 py-2 text-xs text-[#14532d]/80">Demo mode: Use any voucher slug to simulate claim.</p>
     </template>
   </section>
+
 
   <!-- Wallet summary -->
   <section class="rounded-3xl border border-[#dfeee2] bg-white p-6 shadow-sm">
@@ -163,40 +164,6 @@
     </template>
   </section>
 
-  <!-- Voucher list (Recent vouchers) -->
-  <section class="rounded-3xl border border-[#dfeee2] bg-white p-6 shadow-sm">
-    <div class="flex items-center gap-2 text-[#166534]">
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" class="h-4 w-4" fill="currentColor" aria-hidden="true">
-        <path d="M20 6h-2.18c.11-.31.18-.65.18-1 0-1.66-1.34-3-3-3-1.38 0-2.53.93-2.87 2.2L12 5.24l-.13-.04C11.53 3.93 10.38 3 9 3 7.34 3 6 4.34 6 6c0 .35.07.69.18 1H4c-1.1 0-2 .9-2 2v2c0 .55.45 1 1 1h1v9c0 .55.45 1 1 1h14c.55 0 1-.45 1-1v-9h1c.55 0 1-.45 1-1V8c0-1.1-.9-2-2-2zM9 5c.55 0 1 .45 1 1s-.45 1-1 1S8 6.55 8 6s.45-1 1-1zm-3 6h5v9H6v-9zm11 9h-5v-9h5v9zm2-11H4V8h16v1zm-5-2c-.55 0-1-.45-1-1s.45-1 1-1 1 .45 1 1-.45 1-1 1z" />
-      </svg>
-      <h2 class="text-sm font-semibold">Recent vouchers</h2>
-    </div>
-    <template x-if="voucherItems.length === 0">
-      <p class="mt-4 text-sm text-[#166534]/75">No vouchers yet. Select one above to get started.</p>
-    </template>
-    <div class="mt-4 space-y-3" x-show="voucherItems.length > 0">
-      <template x-for="item in voucherItems" :key="item.slug">
-        <article class="rounded-2xl border border-[#e7f3ea] bg-[#f8fdf9] p-4">
-          <div class="flex items-start justify-between gap-3">
-            <div>
-              <p class="text-sm font-semibold text-[#14532d]" x-text="item.name"></p>
-              <p class="text-xs text-[#166534]/80" x-text="item.subtitle"></p>
-            </div>
-            <p class="text-sm font-semibold text-[#14532d]" x-text="item.displayValue"></p>
-          </div>
-          <div class="mt-3 flex items-center justify-between text-xs">
-            <span class="inline-flex items-center gap-2 rounded-full px-3 py-1" :class="item.active ? 'bg-[#d9f2dd] text-[#14532d]' : 'bg-slate-200 text-slate-700'">
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" class="h-3 w-3" fill="currentColor" aria-hidden="true">
-                <path d="M9 16.17 4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" />
-              </svg>
-              <span x-text="item.active ? 'Active' : 'Used'"></span>
-            </span>
-            <span class="text-[#166534]/70" x-text="item.expiry"></span>
-          </div>
-        </article>
-      </template>
-    </div>
-  </section>
 
   <!-- Claim + Mint Modal -->
   <div x-show="modalOpen" style="display:none" class="fixed inset-0 z-50 grid place-items-center bg-black/40">
@@ -319,7 +286,7 @@ function homeView(){
             this.voucherValue = '—';
           }
 
-          // Check for pending voucher code after login
+          // Check for pending voucher slug after login
           this.checkPendingVoucherCode();
         })
         .catch(() => {
@@ -331,13 +298,13 @@ function homeView(){
     
 
     checkPendingVoucherCode(){
-      // Check if there's a pending voucher code from QR scan
+      // Check if there's a pending voucher slug from QR scan
       const pendingCode = sessionStorage.getItem('pending_voucher_code');
       if (pendingCode) {
         // Clear the pending code
         sessionStorage.removeItem('pending_voucher_code');
         
-        // Process the voucher code
+        // Process the voucher slug
         this.claimVoucher(pendingCode);
       }
     },
@@ -665,46 +632,46 @@ function homeView(){
       }
       
       // Expected format: "voucher:spa-30off-2025:claim" or just "spa-30off-2025_abc123"
-      let voucherCode = qrData.trim();
+      let voucherSlug = qrData.trim();
       
-      // If it's a voucher QR format, extract the code
+      // If it's a voucher QR format, extract the slug
       if (qrData.startsWith('voucher:')) {
         const parts = qrData.split(':');
         if (parts.length >= 2) {
-          voucherCode = parts[1]; // Extract voucher slug
+          voucherSlug = parts[1]; // Extract voucher slug
         }
       }
       
-      // Validate voucher code
-      if (!voucherCode || voucherCode.trim() === '') {
-        console.error('Empty voucher code after parsing');
-        this.statusMessage = 'Invalid voucher code. Please try again.';
+      // Validate voucher slug
+      if (!voucherSlug || voucherSlug.trim() === '') {
+        console.error('Empty voucher slug after parsing');
+        this.statusMessage = 'Invalid voucher slug. Please try again.';
         return;
       }
       
-      console.log('Processed voucher code:', voucherCode);
+      console.log('Processed voucher slug:', voucherSlug);
       
       // Check if user is logged in
       if (!this.loggedIn) {
-        // Store the voucher code in session and redirect to auth
-        sessionStorage.setItem('pending_voucher_code', voucherCode);
+        // Store the voucher slug in session and redirect to auth
+        sessionStorage.setItem('pending_voucher_code', voucherSlug);
         const nextUrl = encodeURIComponent(window.location.pathname + window.location.search);
         window.location.href = `/auth/start?next=${nextUrl}`;
         return;
       }
       
       // User is logged in, proceed with claim
-      await this.claimVoucher(voucherCode);
+      await this.claimVoucher(voucherSlug);
     },
 
-    async claimVoucher(code){
+    async claimVoucher(slug){
       try {
-        console.log('Claiming voucher with code:', code);
+        console.log('Claiming voucher with slug:', slug);
         
-        // Validate code before proceeding
-        if (!code || code.trim() === '') {
-          console.error('Empty voucher code in claimVoucher');
-          this.statusMessage = 'Invalid voucher code. Please try again.';
+        // Validate slug before proceeding
+        if (!slug || slug.trim() === '') {
+          console.error('Empty voucher slug in claimVoucher');
+          this.statusMessage = 'Invalid voucher slug. Please try again.';
           return;
         }
         
@@ -716,7 +683,7 @@ function homeView(){
         this.modalOpen = true;
         
         // Redirect to claim page - this will handle the full flow
-        window.location.href = `claim/${code}/`;
+        window.location.href = `claim/${slug}/`;
 
         
       } catch (error) {
@@ -737,25 +704,25 @@ function homeView(){
 
     // Manual code claim
     async claimByCode(){
-      const code = this.manualCode.trim();
-      if (!code) {
-        this.statusMessage = 'Please enter a voucher code.';
+      const slug = this.manualCode.trim();
+      if (!slug) {
+        this.statusMessage = 'Please enter a voucher slug.';
         return;
       }
       
-      console.log('Manual claim with code:', code);
+      console.log('Manual claim with slug:', slug);
       
       // Check if user is logged in
       if (!this.loggedIn) {
-        // Store the voucher code in session and redirect to auth
-        sessionStorage.setItem('pending_voucher_code', code);
+        // Store the voucher slug in session and redirect to auth
+        sessionStorage.setItem('pending_voucher_code', slug);
         const nextUrl = encodeURIComponent(window.location.pathname + window.location.search);
         window.location.href = `/auth/start?next=${nextUrl}`;
         return;
       }
       
       // User is logged in, proceed with claim
-      await this.claimVoucher(code);
+      await this.claimVoucher(slug);
     },
   };
 }

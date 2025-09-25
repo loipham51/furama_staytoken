@@ -10,7 +10,6 @@ from .models import (
     AppUser,
     Wallet,
     VoucherBalance,
-    VoucherTransferLog,
     VoucherType,
     OnchainTx,
     QRClaim,
@@ -31,19 +30,11 @@ def _ip_hash(ip: str) -> Optional[str]:
 # ---------------- Per-user claim limit helpers ----------------
 
 def get_user_total_claimed(user: AppUser, voucher: VoucherType) -> int:
-    """Total amount ever claimed by this user for given voucher (based on transfer log)."""
-    with connection.cursor() as cur:
-        cur.execute(
-            """
-            SELECT COALESCE(SUM(vtl.amount), 0)
-            FROM voucher_transfer_log vtl
-            JOIN wallet w ON w.id = vtl.to_wallet_id
-            WHERE w.user_id = %s AND vtl.voucher_type_id = %s AND vtl.reason = 'claim'
-            """,
-            [str(user.id), str(voucher.id)],
-        )
-        row = cur.fetchone()
-    return int(row[0] or 0)
+    """Total amount ever claimed by this user for given voucher (based on QRClaim)."""
+    return QRClaim.objects.filter(
+        used_by_user=user,
+        voucher_type=voucher
+    ).count()
 
 
 def can_user_claim(user: AppUser, voucher: VoucherType, amount: int = 1) -> tuple[bool, int, int]:
@@ -201,13 +192,7 @@ def issue_voucher(user: AppUser, voucher: VoucherType, amount: int = 1) -> Walle
                 """,
                 [amount, str(wallet.id), str(voucher.id)],
             )
-        cur.execute(
-            """
-            INSERT INTO voucher_transfer_log (id, from_wallet_id, to_wallet_id, voucher_type_id, amount, reason, pos_ref, created_at)
-            VALUES (%s, NULL, %s, %s, %s, 'claim', NULL, NOW())
-            """,
-            [str(uuid.uuid4()), str(wallet.id), str(voucher.id), amount],
-        )
+        # Note: QRClaim record is created in views_claim.py instead of transfer log
     return wallet
 
 
@@ -247,21 +232,7 @@ def debit_voucher(
         )
 
         transfer_id = uuid.uuid4()
-        cur.execute(
-            """
-            INSERT INTO voucher_transfer_log (id, from_wallet_id, to_wallet_id, voucher_type_id, amount, reason, pos_ref, created_at)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, NOW())
-            """,
-            [
-                str(transfer_id),
-                str(wallet.id),
-                str(to_wallet.id) if to_wallet else None,
-                str(voucher.id),
-                amount,
-                reason,
-                pos_ref,
-            ],
-        )
+        # Note: Transfer logging removed - using QRClaim for tracking instead
     return transfer_id
 
 

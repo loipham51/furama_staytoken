@@ -7,7 +7,15 @@
   <p class="text-sm text-gray-600">Your {{ voucher_name }} has been minted on-chain and stored in your custodial wallet.</p>
 
   {% if qr_png_url %}
-    <img src="{{ qr_png_url }}" alt="Wallet QR" class="mx-auto h-48 w-48 rounded-xl border">
+    <div class="space-y-3">
+      <img id="qr-image" src="{{ qr_png_url }}" alt="Wallet QR" class="mx-auto h-48 w-48 rounded-xl border">
+      <button onclick="downloadQR()" class="mx-auto flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" class="h-4 w-4" fill="currentColor">
+          <path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/>
+        </svg>
+        Download QR Code
+      </button>
+    </div>
   {% else %}
     <div class="text-sm text-rose-600">QR code unavailable. Please refresh the page.</div>
   {% endif %}
@@ -37,4 +45,24 @@
     <p>- Depending on policy you may transfer them to a personal wallet or export later.</p>
   </div>
 </div>
+
+<script>
+function downloadQR() {
+  const qrImage = document.getElementById('qr-image');
+  if (!qrImage) {
+    alert('QR code not available');
+    return;
+  }
+  
+  // Create a temporary link element
+  const link = document.createElement('a');
+  link.href = qrImage.src;
+  link.download = 'voucher-qr-code.png';
+  
+  // Trigger download
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+}
+</script>
 {% endblock %}

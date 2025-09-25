@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+{% block title %}My Profile - Furama StayToken{% endblock %}
+{% block content %}
+<div class="space-y-4 rounded-2xl bg-white p-5 shadow">
+  <h1 class="text-lg font-semibold">My Profile</h1>
+
+  <div class="space-y-4">
+    <!-- User Info -->
+    <div class="rounded-xl border p-4">
+      <h2 class="text-base font-semibold mb-3">Personal Information</h2>
+      <div class="space-y-3">
+        <div>
+          <div class="text-xs text-gray-500">Full Name</div>
+          <div class="text-sm font-medium">{{ user.full_name|default:"Not provided" }}</div>
+        </div>
+        <div>
+          <div class="text-xs text-gray-500">Email</div>
+          <div class="text-sm font-medium">{{ user.email|default:"Not provided" }}</div>
+        </div>
+        <div>
+          <div class="text-xs text-gray-500">Phone</div>
+          <div class="text-sm font-medium">{{ user.phone|default:"Not provided" }}</div>
+        </div>
+        <div>
+          <div class="text-xs text-gray-500">Member Since</div>
+          <div class="text-sm font-medium">{{ user.created_at|date:"F d, Y"|default:"Unknown" }}</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Wallet Info -->
+    {% if wallet %}
+      <div class="rounded-xl border p-4">
+        <h2 class="text-base font-semibold mb-3">My Wallet</h2>
+        <div>
+          <div class="text-xs text-gray-500">Wallet Address</div>
+          <div class="break-all font-mono text-sm">{{ wallet.address_hex }}</div>
+        </div>
+      </div>
+    {% else %}
+      <div class="rounded-xl bg-amber-50 p-4 text-sm text-amber-800">
+        <div class="font-medium mb-1">No Wallet Yet</div>
+        <div>Claim a voucher first to create your wallet.</div>
+      </div>
+    {% endif %}
+
+    <!-- Navigation -->
+    <!-- Bottom Navigation -->
+    <div class="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 p-4">
+      <div class="grid grid-cols-3 gap-2 max-w-md mx-auto">
+        <a href="/me" class="flex flex-col items-center py-2 text-xs text-blue-600">
+          <svg class="h-5 w-5 mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
+          </svg>
+          Profile
+        </a>
+        <a href="/my-wallet" class="flex flex-col items-center py-2 text-xs text-gray-600 hover:text-blue-600">
+          <svg class="h-5 w-5 mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"/>
+          </svg>
+          Wallet
+        </a>
+        <a href="/my-vouchers" class="flex flex-col items-center py-2 text-xs text-gray-600 hover:text-blue-600">
+          <svg class="h-5 w-5 mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"/>
+          </svg>
+          Vouchers
+        </a>
+      </div>
+    </div>
+    
+    <div class="grid grid-cols-2 gap-3 pt-2 pb-20">
+      <a href="/auth/profile" class="rounded-xl border py-3 text-sm text-center hover:bg-gray-50">
+        Edit Profile
+      </a>
+      <a href="/logout" class="rounded-xl border py-3 text-sm text-center hover:bg-gray-50">
+        Sign Out
+      </a>
+    </div>
+  </div>
+</div>
+{% endblock %}

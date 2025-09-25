@@ -30,7 +30,6 @@ from .models import (
     POSTerminal,
     Merchant,
     OnchainTx,
-    VoucherTransferLog,
     OnchainStatus,
 )
 from .forms import VoucherTypeForm, MerchantForm, POSTerminalForm
@@ -56,12 +55,8 @@ def admin_dashboard(request):
         .order_by('-created_at')[:25]
     )
 
-    claims_qs = (
-        VoucherTransferLog.objects
-        .select_related('voucher_type', 'to_wallet', 'to_wallet__user')
-        .filter(reason='claim')
-        .order_by('-created_at')[:15]
-    )
+    # Note: VoucherTransferLog removed - using QRClaim for tracking instead
+    claims_qs = []  # Empty for now, can be replaced with QRClaim.objects if needed
 
     # Recent POS redemptions (both reserved and committed)
     recent_redeem_qs = (
@@ -96,15 +91,7 @@ def admin_dashboard(request):
             "wallet": wallet,
         }
 
-    def claim_payload(log: VoucherTransferLog) -> dict:
-        wallet = wallet_info(getattr(log, "to_wallet", None))
-        voucher = log.voucher_type.name if log.voucher_type and log.voucher_type.name else getattr(log.voucher_type, "slug", "—")
-        return {
-            "created_at": log.created_at,
-            "voucher": voucher,
-            "amount": log.amount,
-            "wallet": wallet,
-        }
+    # Note: claim_payload function removed - VoucherTransferLog no longer exists
 
     def redeem_payload(rec: POSRedemption) -> dict:
         wallet = wallet_info(getattr(rec, "wallet", None))
@@ -1007,7 +994,7 @@ def admin_pos_confirm_redemption(request):
             }, status=400)
         
         # Get voucher type and wallet
-        from .models import VoucherType, Wallet, VoucherBalance, VoucherTransferLog
+        from .models import VoucherType, Wallet, VoucherBalance
         try:
             voucher = VoucherType.objects.get(slug=voucher_slug, active=True)
             wallet = Wallet.objects.get(address_hex=wallet_address)
@@ -1035,15 +1022,7 @@ def admin_pos_confirm_redemption(request):
         balance.amount -= 1
         balance.save()
         
-        # Log the transfer
-        VoucherTransferLog.objects.create(
-            from_wallet=wallet,
-            to_wallet=None,  # Redeemed to merchant
-            voucher_type=voucher,
-            amount=1,
-            transfer_type='redemption',
-            description=f'POS redemption by admin {request.user.username}'
-        )
+        # Note: VoucherTransferLog removed - using QRClaim for tracking instead
         
         return JsonResponse({
             "success": True,

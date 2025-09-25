@@ -15,7 +15,7 @@
       {% if balances %}
         <ul class="space-y-2">
           {% for b in balances %}
-          <li class="flex items-center justify-between rounded-xl border p-3">
+          <li class="flex items-center justify-between rounded-xl border p-3 cursor-pointer hover:bg-gray-50" onclick="openVoucherModal('{{ b.slug }}', '{{ b.name }}', '{{ wallet.address_hex }}')">
             <div>
               <div class="text-sm font-medium">{{ b.name }}</div>
               <div class="text-xs text-gray-500">{{ b.slug }}</div>
@@ -39,4 +39,88 @@
     </div>
   {% endif %}
 </div>
+
+<!-- Voucher Modal -->
+<div id="voucherModal" class="fixed inset-0 z-50 hidden bg-black bg-opacity-50">
+  <div class="flex min-h-full items-center justify-center p-4">
+    <div class="w-full max-w-sm rounded-2xl bg-white p-6 shadow-xl">
+      <div class="flex items-center justify-between mb-4">
+        <h3 id="modalVoucherName" class="text-lg font-semibold text-gray-900"></h3>
+        <button onclick="closeVoucherModal()" class="text-gray-400 hover:text-gray-600">
+          <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+      </div>
+      
+      <div class="space-y-4">
+        <div class="text-center">
+          <div class="text-sm text-gray-500 mb-2">Voucher QR Code</div>
+          <img id="modalQRCode" src="" alt="Voucher QR" class="mx-auto h-48 w-48 rounded-xl border">
+        </div>
+        
+        <div class="space-y-2">
+          <button onclick="downloadVoucherQR()" class="w-full flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-3 text-sm font-semibold text-white hover:bg-blue-700">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" class="h-4 w-4" fill="currentColor">
+              <path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/>
+            </svg>
+            Download QR Code
+          </button>
+          
+          <button onclick="closeVoucherModal()" class="w-full rounded-xl border px-4 py-3 text-sm font-semibold text-gray-700 hover:bg-gray-50">
+            Close
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+let currentVoucherSlug = '';
+let currentWalletAddress = '';
+
+function openVoucherModal(slug, name, walletAddress) {
+  currentVoucherSlug = slug;
+  currentWalletAddress = walletAddress;
+  
+  document.getElementById('modalVoucherName').textContent = name;
+  
+  // Generate QR code URL
+  const qrUrl = `/qr/voucher/${slug}/${walletAddress.replace('0x', '')}.png`;
+  document.getElementById('modalQRCode').src = qrUrl;
+  
+  // Show modal
+  document.getElementById('voucherModal').classList.remove('hidden');
+}
+
+function closeVoucherModal() {
+  document.getElementById('voucherModal').classList.add('hidden');
+}
+
+function downloadVoucherQR() {
+  const qrImage = document.getElementById('modalQRCode');
+  if (!qrImage || !qrImage.src) {
+    alert('QR code not available');
+    return;
+  }
+  
+  // Create a temporary link element
+  const link = document.createElement('a');
+  link.href = qrImage.src;
+  link.download = `${currentVoucherSlug}-qr-code.png`;
+  
+  // Trigger download
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+}
+
+// Close modal when clicking outside
+document.getElementById('voucherModal').addEventListener('click', function(e) {
+  if (e.target === this) {
+    closeVoucherModal();
+  }
+});
+</script>
 {% endblock %}

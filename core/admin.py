@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import AppUser, Wallet, VoucherType, VoucherBalance, VoucherTransferLog, QRClaim, POSRedemption, OnchainTx, Policy
+from .models import AppUser, Wallet, VoucherType, VoucherBalance, QRClaim, POSRedemption, OnchainTx, Policy
 
 @admin.register(AppUser)
 class AppUserAdmin(admin.ModelAdmin):
@@ -22,10 +22,7 @@ class VoucherBalanceAdmin(admin.ModelAdmin):
     list_display = ("wallet", "voucher_type", "balance", "updated_at")
     search_fields = ("voucher_type__slug",)
 
-@admin.register(VoucherTransferLog)
-class VoucherTransferLogAdmin(admin.ModelAdmin):
-    list_display = ("voucher_type","from_wallet","to_wallet","amount","reason","created_at")
-    list_filter = ("reason",)
+# VoucherTransferLog removed - using QRClaim for tracking instead
 
 @admin.register(QRClaim)
 class QRClaimAdmin(admin.ModelAdmin):
