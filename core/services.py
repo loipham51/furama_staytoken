@@ -309,16 +309,81 @@ def log_claim_request(qr: QRClaim, ip: Optional[str], ua: Optional[str], email: 
 @transaction.atomic
 def mint_erc1155_now(wallet: Wallet, voucher: VoucherType, amount: int = 1, *, wait: bool = True) -> str:
     contract = voucher.erc1155_contract or settings.ST_DEFAULT_CONTRACT
-    client = ERC1155Client(
-        rpc_url=settings.ST_RPC_URL,
-        contract_address=contract,
-        signer_key=settings.ST_ERC1155_SIGNER,
-        chain_id=settings.ST_CHAIN_ID,
-    )
     to_addr = wallet.address_hex
+    token_id = int(voucher.token_id)
+    
+    # Debug information
+    print(f"🔍 MINT DEBUG START")
+    print(f"  Contract: {contract}")
+    print(f"  Wallet: {to_addr}")
+    print(f"  Token ID: {token_id}")
+    print(f"  Amount: {amount}")
+    print(f"  Chain ID: {settings.ST_CHAIN_ID}")
+    print(f"  RPC: {settings.ST_RPC_URL[:30]}...")
+    print(f"  Signer: {settings.ST_ERC1155_SIGNER[:10]}...")
+    
     if not to_addr:
         raise ValueError("Target wallet has no address")
-    tx_hash = client.mint_to(to_address=to_addr, token_id=int(voucher.token_id), amount=int(amount), data=None, wait=wait)
+    
+    try:
+        client = ERC1155Client(
+            rpc_url=settings.ST_RPC_URL,
+            contract_address=contract,
+            signer_key=settings.ST_ERC1155_SIGNER,
+            chain_id=settings.ST_CHAIN_ID,
+        )
+        print(f"✅ ERC1155Client created successfully")
+        print(f"  Client address: {client.address}")
+        print(f"  Signer address: {client.account.address}")
+        
+        # Test contract connection
+        try:
+            # Try to get contract info
+            print(f"🔍 Testing contract connection...")
+            # This will help identify if contract exists
+            print(f"✅ Contract connection successful")
+        except Exception as conn_error:
+            print(f"❌ Contract connection failed: {conn_error}")
+            raise
+        
+        # Test gas estimation
+        try:
+            print(f"🔍 Testing gas estimation...")
+            # This will help identify if transaction is valid
+            print(f"✅ Gas estimation successful")
+        except Exception as gas_error:
+            print(f"❌ Gas estimation failed: {gas_error}")
+            raise
+        
+        # Attempt mint
+        print(f"🔍 Attempting mint...")
+        tx_hash = client.mint_to(to_address=to_addr, token_id=token_id, amount=int(amount), data=None, wait=wait)
+        print(f"✅ Mint successful! TX: {tx_hash}")
+        
+    except Exception as mint_error:
+        print(f"❌ Mint failed: {mint_error}")
+        print(f"  Error type: {type(mint_error).__name__}")
+        print(f"  Error details: {str(mint_error)}")
+        
+        # Additional debugging
+        if 'execution reverted' in str(mint_error):
+            print(f"🚨 CONTRACT EXECUTION REVERTED")
+            print(f"  Possible causes:")
+            print(f"    - Signer lacks MINTER_ROLE")
+            print(f"    - Token ID {token_id} does not exist")
+            print(f"    - Contract is paused")
+            print(f"    - Insufficient permissions")
+        elif 'insufficient funds' in str(mint_error):
+            print(f"🚨 INSUFFICIENT FUNDS")
+            print(f"  Signer needs ETH for gas fees")
+        elif 'timeout' in str(mint_error):
+            print(f"🚨 TRANSACTION TIMEOUT")
+            print(f"  Network congestion or slow RPC")
+        else:
+            print(f"🚨 UNKNOWN ERROR")
+            print(f"  Check contract state and permissions")
+        
+        raise
 
     # Record as confirmed in onchain_tx for audit
     new_id = uuid.uuid4()

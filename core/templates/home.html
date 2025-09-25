@@ -125,20 +125,6 @@
           </button>
         </div>
         
-        <!-- Test QR Code -->
-        <div class="mt-4 text-center">
-          <p class="text-xs text-[#166534]/60 mb-2">Test QR Code:</p>
-          <div class="inline-block p-2 bg-white border border-gray-300 rounded">
-            <div id="test-qr-code" class="w-32 h-32"></div>
-          </div>
-          <p class="text-xs text-[#166534]/60 mt-2">Scan this test QR code to verify scanner works</p>
-          <button 
-            @click="testQRScanner()"
-            class="mt-2 rounded-lg bg-blue-500 px-3 py-1 text-xs text-white hover:bg-blue-600"
-          >
-            Test QR Scanner (Simulate)
-          </button>
-        </div>
       </div>
     </div>
     
@@ -341,64 +327,8 @@ function homeView(){
           this.loggedIn = false;
         });
         
-      // Generate test QR code
-      this.generateTestQR();
-      
-      // Fallback if qrcode library fails
-      setTimeout(() => {
-        if (typeof qrcode === 'undefined') {
-          console.log('Using fallback QR code generation');
-          this.generateTestQRCanvas();
-        }
-      }, 5000);
     },
     
-    generateTestQR(){
-      // Create a test QR code
-      if (typeof qrcode !== 'undefined') {
-        const testData = 'voucher:spa-30off-2025:claim';
-        const qrContainer = document.getElementById('test-qr-code');
-        if (qrContainer) {
-          qrContainer.innerHTML = '';
-          const qr = qrcode.make(testData);
-          qrContainer.appendChild(qr);
-        }
-      } else {
-        console.log('qrcode library not loaded yet, will retry...');
-        // Try again after a longer delay
-        setTimeout(() => this.generateTestQR(), 2000);
-      }
-    },
-    
-    // Alternative QR code generation using canvas
-    generateTestQRCanvas(){
-      const testData = 'voucher:spa-30off-2025:claim';
-      const qrContainer = document.getElementById('test-qr-code');
-      if (qrContainer) {
-        qrContainer.innerHTML = '';
-        const canvas = document.createElement('canvas');
-        canvas.width = 128;
-        canvas.height = 128;
-        const ctx = canvas.getContext('2d');
-        
-        // Simple QR code simulation
-        ctx.fillStyle = '#000';
-        ctx.fillRect(0, 0, 128, 128);
-        ctx.fillStyle = '#fff';
-        ctx.fillRect(8, 8, 112, 112);
-        ctx.fillStyle = '#000';
-        ctx.fillRect(16, 16, 96, 96);
-        
-        qrContainer.appendChild(canvas);
-      }
-    },
-    
-    testQRScanner(){
-      // Simulate QR code detection for testing
-      console.log('Testing QR Scanner...');
-      console.log('Test QR data:', testData);
-      this.processQRCode(testData);
-    },
 
     checkPendingVoucherCode(){
       // Check if there's a pending voucher code from QR scan
