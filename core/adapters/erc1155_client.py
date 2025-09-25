@@ -243,22 +243,54 @@ class ERC1155Client:
             ('mintTo(address,uint256,uint256)', (to_cs, int(token_id), int(amount))),
         ]
         errors: List[str] = []
-        for signature, args in attempts:
+        print(f"🔍 MINT_TO DEBUG: Trying {len(attempts)} function signatures")
+        
+        for i, (signature, args) in enumerate(attempts):
+            print(f"  Attempt {i+1}: {signature}")
+            print(f"    Args: {args}")
+            
             try:
                 fn = self.contract.get_function_by_signature(signature)
-            except ValueError:
+                print(f"    ✅ Function found")
+            except ValueError as ve:
+                print(f"    ❌ Function not found: {ve}")
                 continue
+                
             try:
+                print(f"    🔍 Building transaction...")
                 tx = fn(*args).build_transaction(self._prepare_base_tx(self.address))
+                print(f"    ✅ Transaction built")
+                
+                print(f"    🔍 Ensuring fee fields...")
                 tx = self._ensure_fee_fields(tx)
+                print(f"    ✅ Fee fields ensured")
+                print(f"    Gas: {tx.get('gas', 'auto')}")
+                print(f"    Gas Price: {tx.get('gasPrice', 'auto')}")
+                
+                print(f"    🔍 Signing and sending...")
                 tx_hash = self._sign_and_send(tx)
+                print(f"    ✅ Transaction sent: {tx_hash}")
+                
                 if wait:
+                    print(f"    🔍 Waiting for receipt...")
                     self.wait_for_receipt(tx_hash, timeout=timeout)
+                    print(f"    ✅ Transaction confirmed")
+                
                 return tx_hash
+                
             except ContractLogicError as exc:
-                errors.append(f"{signature}: {exc}")
-            except Exception as exc:  # pragma: no cover - best effort logging
-                errors.append(f"{signature}: {exc}")
+                error_msg = f"{signature}: {exc}"
+                print(f"    ❌ Contract Logic Error: {error_msg}")
+                errors.append(error_msg)
+            except Exception as exc:
+                error_msg = f"{signature}: {exc}"
+                print(f"    ❌ General Error: {error_msg}")
+                errors.append(error_msg)
+        
+        print(f"🚨 ALL ATTEMPTS FAILED")
+        for error in errors:
+            print(f"  - {error}")
+            
         if errors:
             raise RuntimeError('Unable to mint via available signatures: ' + '; '.join(errors))
         raise RuntimeError('Contract does not expose a supported mint function')

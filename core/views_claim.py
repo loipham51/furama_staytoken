@@ -23,58 +23,74 @@ from .services import (
 )
 
 
-def _process_claim(request, qr: QRClaim, *, user):
+def _process_claim(request, qr, *, user):
     email = (user.email or "").lower() or None
     phone = user.phone or None
     consent = True
     client_ip = request.META.get("REMOTE_ADDR")
     ua = request.META.get("HTTP_USER_AGENT")
 
-    if not rate_limit_ok(email=email, ip=client_ip):
-        log_claim_request(qr, client_ip, ua, email, phone, consent, "rate_limited")
-        return render(
-            request,
-            "claim_start.html",
-            {
-                "code": qr.code,
-                "error": "Bạn thao tác quá nhanh, thử lại sau vài phút.",
-            },
-            status=429,
-        )
+    # Handle both QRClaim and VoucherType objects
+    code = getattr(qr, 'code', None) or getattr(qr, 'slug', '')
+    
+    # For VoucherType objects, skip QR-specific validations
+    if hasattr(qr, 'voucher_type'):
+        # qr is QRClaim object - do full validation
+        if not rate_limit_ok(email=email, ip=client_ip):
+            log_claim_request(qr, client_ip, ua, email, phone, consent, "rate_limited")
+            return render(
+                request,
+                "claim_start.html",
+                {
+                    "code": code,
+                    "error": "Bạn thao tác quá nhanh, thử lại sau vài phút.",
+                },
+                status=429,
+            )
 
-    if qr.status != "new":
-        log_claim_request(qr, client_ip, ua, email, phone, consent, "used")
-        return render(
-            request,
-            "claim_start.html",
-            {
-                "code": qr.code,
-                "error": "QR đã được sử dụng hoặc không còn hiệu lực.",
-            },
-            status=409,
-        )
+        if qr.active != True:
+            log_claim_request(qr, client_ip, ua, email, phone, consent, "used")
+            return render(
+                request,
+                "claim_start.html",
+                {
+                    "code": code,
+                    "error": "QR đã được sử dụng hoặc không còn hiệu lực.",
+                },
+                status=409,
+            )
 
-    if qr.expires_at and qr.expires_at < timezone.now():
-        log_claim_request(qr, client_ip, ua, email, phone, consent, "expired")
-        return render(
-            request,
-            "claim_start.html",
-            {
-                "code": qr.code,
-                "error": "QR đã hết hạn.",
-            },
-            status=410,
-        )
+        if qr.expires_at and qr.expires_at < timezone.now():
+            log_claim_request(qr, client_ip, ua, email, phone, consent, "expired")
+            return render(
+                request,
+                "claim_start.html",
+                {
+                    "code": code,
+                    "error": "QR đã hết hạn.",
+                },
+                status=410,
+            )
+    else:
+        # qr is VoucherType object - skip QR validations
+        pass
 
+    # Get voucher_type - handle both QRClaim and VoucherType objects
+    if hasattr(qr, 'voucher_type'):
+        voucher_type = qr.voucher_type
+    else:
+        voucher_type = qr
+    
     # Enforce per-user limit
-    ok, claimed, limit = can_user_claim(user, qr.voucher_type, amount=1)
+    ok, claimed, limit = can_user_claim(user, voucher_type, amount=1)
     if not ok:
-        log_claim_request(qr, client_ip, ua, email, phone, consent, "limit_reached")
+        if hasattr(qr, 'voucher_type'):
+            log_claim_request(qr, client_ip, ua, email, phone, consent, "limit_reached")
         return render(
             request,
             "claim_start.html",
             {
-                "code": qr.code,
+                "code": code,
                 "error": f"Bạn đã đạt giới hạn claim ({claimed}/{limit}).",
             },
             status=403,
@@ -85,33 +101,43 @@ def _process_claim(request, qr: QRClaim, *, user):
     
     try:
         with transaction.atomic():
-            wallet = issue_voucher(user, qr.voucher_type, amount=1)
+            wallet = issue_voucher(user, voucher_type, amount=1)
             
             # Mint immediately instead of queuing
-            tx_hash = mint_erc1155_now(wallet, qr.voucher_type, amount=1, wait=True)
+            tx_hash = mint_erc1155_now(wallet, voucher_type, amount=1, wait=True)
             
-            finish_qr_claim(qr, user)
-            log_claim_request(qr, client_ip, ua, email, phone, consent, "ok")
+            # Only finish QR claim if it's a QRClaim object
+            if hasattr(qr, 'voucher_type'):
+                finish_qr_claim(qr, user)
+                log_claim_request(qr, client_ip, ua, email, phone, consent, "ok")
             
             # Store transaction hash in session for success page
             request.session['last_claim_tx_hash'] = tx_hash
             
     except Exception as exc:
-        log_claim_request(qr, client_ip, ua, email, phone, consent, f"mint_failed: {str(exc)}")
+        if hasattr(qr, 'voucher_type'):
+            log_claim_request(qr, client_ip, ua, email, phone, consent, f"mint_failed: {str(exc)}")
         return render(
             request,
             "claim_start.html",
             {
-                "code": qr.code,
+                "code": code,
                 "error": f"Không thể mint voucher: {str(exc)}",
             },
             status=500,
         )
 
-    return HttpResponseRedirect(reverse("claim_done", args=[qr.code]))
+    return HttpResponseRedirect(reverse("claim_done", args=[code]))
 
-def _voucher_display(qr: QRClaim):
-    voucher = qr.voucher_type
+def _voucher_display(qr):
+    # Handle both QRClaim and VoucherType objects
+    if hasattr(qr, 'voucher_type'):
+        # qr is QRClaim object
+        voucher = qr.voucher_type
+    else:
+        # qr is VoucherType object
+        voucher = qr
+    
     if not voucher:
         return {
             "title": "StayToken voucher",
@@ -129,13 +155,15 @@ def _voucher_display(qr: QRClaim):
     }
 
 
-def _render_email_form(request, qr: QRClaim, form: OTPStartForm, *, message: str | None = None):
+def _render_email_form(request, qr, form: OTPStartForm, *, message: str | None = None):
     meta = _voucher_display(qr)
+    # Handle both QRClaim and VoucherType objects
+    code = getattr(qr, 'code', None) or getattr(qr, 'slug', '')
     return render(
         request,
         "claim_guest_email.html",
         {
-            "code": qr.code,
+            "code": code,
             "form": form,
             "voucher_title": meta["title"],
             "voucher_subtitle": meta["subtitle"],
@@ -155,7 +183,7 @@ def _needs_profile(user) -> bool:
 
 def _render_profile_form(
     request,
-    qr: QRClaim,
+    qr,
     form: ClaimProfileForm,
     *,
     status_code: int = 200,
@@ -163,11 +191,13 @@ def _render_profile_form(
     user_email: str | None = None,
 ):
     meta = _voucher_display(qr)
+    # Handle both QRClaim and VoucherType objects
+    code = getattr(qr, 'code', None) or getattr(qr, 'slug', '')
     return render(
         request,
         "claim_guest_form.html",
         {
-            "code": qr.code,
+            "code": code,
             "form": form,
             "voucher_title": meta["title"],
             "voucher_subtitle": meta["subtitle"],
@@ -210,10 +240,10 @@ def _refresh_user_profile(user, *, full_name: str | None, email: str | None, pho
 
 
 @require_http_methods(["GET"])
-def claim_start(request, code: str):
+def claim_start(request, slug: str):
     try:
-        qr = QRClaim.objects.get(code=code)
-    except QRClaim.DoesNotExist:
+        qr = VoucherType.objects.get(slug=slug)
+    except VoucherType.DoesNotExist:
         raise Http404("QR không hợp lệ")
 
     user = get_current_user(request)
@@ -227,10 +257,10 @@ def claim_start(request, code: str):
     return _render_email_form(request, qr, form)
 
 @require_http_methods(["POST"])
-def claim_submit(request, code: str):
+def claim_submit(request, slug: str):
     try:
-        qr = QRClaim.objects.get(code=code)
-    except QRClaim.DoesNotExist:
+        qr = VoucherType.objects.get(slug=slug)
+    except VoucherType.DoesNotExist:
         raise Http404("QR không hợp lệ")
 
     user = get_current_user(request)
@@ -303,10 +333,10 @@ def claim_mint_now(request, slug: str):
     })
 
 
-def claim_done(request, code: str):
+def claim_done(request, slug: str):
     try:
-        qr = QRClaim.objects.get(code=code)
-    except QRClaim.DoesNotExist:
+        qr = VoucherType.objects.get(slug=slug)
+    except VoucherType.DoesNotExist:
         raise Http404
     user = qr.used_by_user
     wallet = None

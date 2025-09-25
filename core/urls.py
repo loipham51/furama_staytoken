@@ -48,9 +48,9 @@ urlpatterns = [
 
   path("", views_home.home, name="home"),
   path("qr-scanner", views_home.qr_scanner, name="qr_scanner"),
-  path('claim/<str:code>/', views_claim.claim_start, name='claim_start'),
-  path('claim/<str:code>/submit', views_claim.claim_submit, name='claim_submit'),
-  path('claim/<str:code>/done', views_claim.claim_done, name='claim_done'),
+  path('claim/<str:slug>/', views_claim.claim_start, name='claim_start'),
+  path('claim/<str:slug>/submit', views_claim.claim_submit, name='claim_submit'),
+  path('claim/<str:slug>/done', views_claim.claim_done, name='claim_done'),
   path('api/claim-mint/<str:slug>', views_claim.claim_mint_now, name='claim_mint_now'),
   path('wallet/export', views_wallet.export_view, name='wallet_export'),
   path('wallet/transfer', views_wallet.transfer_view, name='wallet_transfer'),
