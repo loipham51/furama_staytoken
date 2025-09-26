@@ -1130,6 +1130,44 @@ def admin_voucher_codes(request, slug: str):
 
 @admin_required
 @require_http_methods(["POST"])
+def admin_voucher_generate_qr(request, slug: str):
+    """Generate QR code PNG for a voucher type."""
+    try:
+        voucher = VoucherType.objects.get(slug=slug)
+    except VoucherType.DoesNotExist:
+        return JsonResponse({"success": False, "message": "Voucher not found"}, status=404)
+    
+    try:
+        from core.qrcode_utils import get_or_make_cached_png
+        from django.conf import settings
+        import os
+        
+        # Generate QR code data
+        qr_data = f"voucher:{slug}:claim"
+        
+        # Create QR code PNG file
+        qr_filename = f"voucher_{slug}.png"
+        qr_path = get_or_make_cached_png(qr_filename, qr_data)
+        
+        # Return URL to the generated QR code
+        qr_url = f"/qr_cache/{qr_filename}"
+        
+        return JsonResponse({
+            "success": True,
+            "message": f"QR code generated for {voucher.name}",
+            "qr_url": qr_url,
+            "qr_path": qr_path
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            "success": False,
+            "message": f"Error generating QR code: {str(e)}"
+        }, status=500)
+
+
+@admin_required
+@require_http_methods(["POST"])
 def admin_voucher_generate_codes(request, slug: str):
     """Generate new voucher codes for a voucher type."""
     try:

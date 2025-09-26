@@ -1,24 +1,20 @@
 ﻿{% extends "base_admin.html" %}
 {% block title %}Blockchain Console - StayToken{% endblock %}
 {% block content %}
-<div x-data="{ tab: 'activity' }" class="mx-auto max-w-3xl space-y-6 px-4 pb-20 pt-8">
+<div x-data="{ tab: 'redeem' }" class="mx-auto max-w-3xl space-y-6 px-4 pb-20 pt-8">
   <!-- Header / Intro -->
   <section class="relative overflow-hidden rounded-3xl border border-emerald-100 bg-gradient-to-br from-emerald-50/80 via-white to-emerald-50 p-6 shadow-sm">
     <div class="pointer-events-none absolute -top-16 -right-16 h-56 w-56 rounded-full bg-emerald-100/40 blur-3xl"></div>
     <div class="space-y-2 text-emerald-900">
       <p class="text-[11px] font-semibold uppercase tracking-widest text-emerald-700/70">Furama StayToken</p>
       <h1 class="text-2xl font-bold leading-tight">Custodial blockchain orchestration</h1>
-      <p class="text-sm leading-relaxed text-emerald-800/80">Track minting, on‑chain executions, and off‑chain voucher claims with a clear, compact view.</p>
     </div>
   </section>
 
 
   <!-- Tabs -->
   <div class="sticky top-0 z-10 -mx-4 bg-gradient-to-b from-white/80 to-white/40 px-4 py-2 backdrop-blur supports-[backdrop-filter]:backdrop-blur">
-    <nav class="grid grid-cols-2 gap-2 text-sm text-emerald-900" role="tablist" aria-label="Console sections">
-      <button @click="tab = 'activity'" :aria-selected="tab === 'activity'" :class="tab === 'activity' ? 'bg-emerald-600 text-white shadow-sm ring-1 ring-emerald-600/70' : 'bg-white text-emerald-900 hover:bg-emerald-50'" class="inline-flex items-center justify-center gap-2 rounded-full border border-emerald-100 px-4 py-2 font-semibold transition focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500" role="tab">
-        <span>Claims & Mint</span>
-      </button>
+    <nav class="grid grid-cols-1 gap-2 text-sm text-emerald-900" role="tablist" aria-label="Console sections">
       <button @click="tab = 'redeem'" :aria-selected="tab === 'redeem'" :class="tab === 'redeem' ? 'bg-emerald-600 text-white shadow-sm ring-1 ring-emerald-600/70' : 'bg-white text-emerald-900 hover:bg-emerald-50'" class="inline-flex items-center justify-center gap-2 rounded-full border border-emerald-100 px-4 py-2 font-semibold transition focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500" role="tab">
         <span>Redeem (POS)</span>
       </button>
@@ -32,208 +28,186 @@
     })
   </script>
 
-  <!-- Claims & Mint combined -->
-  <section x-show="tab === 'activity'" x-cloak class="space-y-4" aria-labelledby="activity-title">
-    <h2 id="activity-title" class="text-xs font-semibold uppercase tracking-wide text-emerald-700/80">Claims & On‑chain minting</h2>
-    {% if claim_logs %}
-      <ul class="space-y-3">
-        {% for log in claim_logs %}
-        <li class="rounded-2xl border border-emerald-100 bg-white/90 p-4 shadow-sm transition hover:shadow-md">
-          <div class="flex items-start justify-between gap-3 text-[13px] text-emerald-900/90">
-            <div class="min-w-0">
-              <p class="truncate text-sm font-semibold text-emerald-950">{{ log.voucher }}</p>
-              <p class="mt-1 truncate">Wallet <span class="font-mono text-[12px]">{{ log.wallet.short_address|default:'-' }}</span> · Guest {{ log.wallet.guest_name|default:'-' }}</p>
-            </div>
-            <time class="shrink-0 text-xs text-emerald-700/60">{{ log.created_at|date:"Y-m-d H:i" }}</time>
-          </div>
-          <p class="mt-2 text-[13px]">Số lượng: <span class="font-semibold text-emerald-700">{{ log.amount }}</span></p>
-        </li>
-        {% endfor %}
-      </ul>
-    {% else %}
-      <div class="rounded-2xl border border-dashed border-emerald-200 bg-white p-6 text-center text-sm text-emerald-700/80">
-        <div class="mx-auto mb-2 h-8 w-8 rounded-full bg-emerald-50 ring-1 ring-emerald-100"></div>
-        <p class="font-medium">No recent claim activity</p>
-        <p class="mt-1 text-emerald-700/70">Claims will appear as guests redeem vouchers.</p>
-      </div>
-    {% endif %}
-    <div class="rounded-2xl border border-emerald-100 bg-emerald-50/50 p-4 text-[13px] text-emerald-900">
-      <p class="font-semibold">Status legend</p>
-      <ul class="mt-1 list-inside list-disc space-y-0.5">
-        <li><span class="font-semibold">Queued</span>: waiting to be sent on‑chain.</li>
-        <li><span class="font-semibold">Sent</span>: broadcast to the network, awaiting confirmation.</li>
-        <li><span class="font-semibold">Confirmed</span>: transaction succeeded.</li>
-        <li><span class="font-semibold">Failed</span>: reverted or failed to send.</li>
-      </ul>
+
+  <!-- Recent Executions -->
+  <section class="space-y-4" aria-labelledby="executions-title">
+    <div class="flex items-center justify-between">
+      <h2 id="executions-title" class="text-xl font-bold uppercase tracking-wide text-emerald-700/80">Recent executions</h2>
     </div>
-    <h3 class="text-[13px] font-semibold text-emerald-900">Pending queue</h3>
-    {% if pending_txs %}
-      <ul class="space-y-3">
-        {% for tx in pending_txs %}
-        <li class="rounded-2xl border border-emerald-100 bg-white/90 p-4 shadow-sm transition hover:shadow-md">
-          <div class="flex items-start justify-between gap-3 text-sm text-emerald-900">
-            <p class="truncate font-semibold">{{ tx.voucher }}</p>
-            <time class="shrink-0 text-xs text-emerald-700/60">{{ tx.created_at|date:"Y-m-d H:i" }}</time>
-          </div>
-          <dl class="mt-3 grid grid-cols-2 gap-x-6 gap-y-2 text-[13px] text-emerald-900/90">
-            <div>
-              <dt class="font-semibold">Amount</dt>
-              <dd class="mt-0.5 font-semibold text-emerald-700">{{ tx.amount }}</dd>
-            </div>
-            <div>
-              <dt class="font-semibold">Wallet</dt>
-              <dd class="mt-0.5 font-mono text-[12px]">{{ tx.wallet.short_address|default:'-' }}</dd>
-            </div>
-            <div>
-              <dt class="font-semibold">Guest</dt>
-              <dd class="mt-0.5">{{ tx.wallet.guest_name|default:'Ví khách' }}</dd>
-            </div>
-            <div>
-              <dt class="font-semibold">Status</dt>
-              <dd class="mt-0.5 inline-flex items-center gap-2 rounded-full bg-amber-50 px-3 py-1 text-amber-800 ring-1 ring-amber-200">{{ tx.status }}</dd>
-            </div>
-          </dl>
-        </li>
-        {% endfor %}
-      </ul>
-    {% else %}
-      <div class="rounded-2xl border border-dashed border-emerald-200 bg-white p-6 text-center text-sm text-emerald-700/80">
-        <div class="mx-auto mb-2 h-8 w-8 rounded-full bg-emerald-50 ring-1 ring-emerald-100"></div>
-        <p class="font-medium">No queued transactions</p>
-        <p class="mt-1 text-emerald-700/70">Minting queue is empty.</p>
-      </div>
-    {% endif %}
-    <h3 class="mt-6 text-[13px] font-semibold text-emerald-900">Recent executions</h3>
-    {% if recent_txs %}
-      <ul class="space-y-3">
+    
+    <!-- Scrollable executions list -->
+    <div class="max-h-96 overflow-y-auto space-y-3 pr-2 scrollbar-thin scrollbar-thumb-emerald-200 scrollbar-track-transparent">
+      {% if recent_txs %}
         {% for tx in recent_txs %}
-        <li class="rounded-2xl border border-emerald-100 bg-white/90 p-4 shadow-sm transition hover:shadow-md">
+        <div class="rounded-2xl border border-emerald-100 bg-white/90 p-4 shadow-sm transition hover:shadow-md">
           <div class="flex items-start justify-between gap-3 text-sm text-emerald-900">
-            <p class="truncate font-semibold">{{ tx.voucher }}</p>
-            <time class="shrink-0 text-xs text-emerald-700/60">{{ tx.updated_at|date:"Y-m-d H:i" }}</time>
+            <div class="min-w-0 flex-1">
+              <p class="truncate font-semibold text-emerald-950">{{ tx.voucher }}</p>
+              <p class="mt-1 truncate text-xs text-emerald-700/80">
+                Wallet <span class="font-mono">{{ tx.wallet.short_address|default:'-' }}</span> · 
+                Guest {{ tx.wallet.guest_name|default:'Anonymous' }}
+              </p>
+            </div>
+            <time class="shrink-0 text-xs text-emerald-700/60">{{ tx.updated_at|date:"M d, H:i" }}</time>
           </div>
-          <dl class="mt-3 grid grid-cols-2 gap-x-6 gap-y-2 text-[13px] text-emerald-900/90">
+          
+          <div class="mt-3 grid grid-cols-2 gap-3 text-xs">
             <div>
-              <dt class="font-semibold">Amount</dt>
-              <dd class="mt-0.5 font-semibold text-emerald-700">{{ tx.amount }}</dd>
-            </div>
-            <div class="col-span-2">
-              <dt class="font-semibold">Tx hash</dt>
-              <dd class="mt-1 flex min-w-0 items-center gap-2">
-                {% if tx.tx_hash %}
-                  {% if explorer_tx_prefix %}
-                  <a target="_blank" rel="noopener" href="{{ explorer_tx_prefix }}{{ tx.tx_hash }}" class="block w-full break-all rounded-lg bg-emerald-50 px-3 py-2 font-mono text-[12px] text-emerald-900 ring-1 ring-emerald-100 hover:bg-emerald-100">{{ tx.tx_hash }}</a>
-                  {% else %}
-                  <span class="block w-full break-all rounded-lg bg-emerald-50 px-3 py-2 font-mono text-[12px] text-emerald-900 ring-1 ring-emerald-100">{{ tx.tx_hash }}</span>
-                  {% endif %}
-                  <button type="button" @click="$copy('{{ tx.tx_hash }}')" class="shrink-0 rounded-lg border border-emerald-200 bg-white px-2 py-1 text-[11px] font-semibold text-emerald-900 hover:bg-emerald-50">Copy</button>
-                {% else %}
-                  <span class="block w-full break-all rounded-lg bg-emerald-50 px-3 py-2 font-mono text-[12px] text-emerald-900 ring-1 ring-emerald-100">(pending signature)</span>
-                {% endif %}
-              </dd>
+              <span class="text-xs text-emerald-700/70">Amount</span>
+              <p class="font-semibold text-emerald-900">{{ tx.amount }}</p>
             </div>
             <div>
-              <dt class="font-semibold">Wallet</dt>
-              <dd class="mt-0.5 font-mono text-[12px]">
-                {% if tx.wallet.address and explorer_addr_prefix %}
-                  <a target="_blank" rel="noopener" href="{{ explorer_addr_prefix }}{{ tx.wallet.address }}" class="text-emerald-700 hover:underline">{{ tx.wallet.short_address|default:'-' }}</a>
-                {% else %}
-                  {{ tx.wallet.short_address|default:'-' }}
-                {% endif %}
-              </dd>
-            </div>
-            <div>
-              <dt class="font-semibold">Status</dt>
-              <dd class="mt-0.5">
+              <span class="text-xs text-emerald-700/70">Status</span>
+              <div class="mt-1">
                 {% if tx.status_code == 'confirmed' %}
-                  <span class="inline-flex items-center rounded-full bg-emerald-50 px-3 py-1 text-emerald-900 ring-1 ring-emerald-200">Confirmed</span>
+                  <span class="inline-flex items-center rounded-full bg-emerald-50 px-2 py-1 text-xs font-medium text-emerald-900 ring-1 ring-emerald-200">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" class="h-3 w-3 mr-1" fill="currentColor">
+                      <path d="M9 16.17 4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
+                    </svg>
+                    Confirmed
+                  </span>
                 {% elif tx.status_code == 'failed' %}
-                  <span class="inline-flex items-center rounded-full bg-rose-50 px-3 py-1 text-rose-800 ring-1 ring-rose-200">Failed</span>
+                  <span class="inline-flex items-center rounded-full bg-rose-50 px-2 py-1 text-xs font-medium text-rose-800 ring-1 ring-rose-200">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" class="h-3 w-3 mr-1" fill="currentColor">
+                      <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
+                    </svg>
+                    Failed
+                  </span>
                 {% else %}
-                  <span class="inline-flex items-center rounded-full bg-slate-100 px-3 py-1 text-slate-700 ring-1 ring-slate-200">{{ tx.status }}</span>
+                  <span class="inline-flex items-center rounded-full bg-slate-100 px-2 py-1 text-xs font-medium text-slate-700 ring-1 ring-slate-200">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" class="h-3 w-3 mr-1" fill="currentColor">
+                      <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
+                    </svg>
+                    {{ tx.status }}
+                  </span>
                 {% endif %}
-              </dd>
+              </div>
             </div>
-          </dl>
-        </li>
+          </div>
+          
+          {% if tx.tx_hash %}
+          <div class="mt-3">
+            <span class="text-xs text-emerald-700/70">Transaction</span>
+            <div class="mt-1 flex items-center gap-2">
+              {% if explorer_tx_prefix %}
+              <a target="_blank" rel="noopener" href="{{ explorer_tx_prefix }}{{ tx.tx_hash }}" 
+                 class="flex-1 truncate rounded-lg bg-emerald-50 px-3 py-2 font-mono text-xs text-emerald-900 ring-1 ring-emerald-100 hover:bg-emerald-100">
+                {{ tx.tx_hash|truncatechars:20 }}...
+              </a>
+              {% else %}
+              <span class="flex-1 truncate rounded-lg bg-emerald-50 px-3 py-2 font-mono text-xs text-emerald-900 ring-1 ring-emerald-100">
+                {{ tx.tx_hash|truncatechars:20 }}...
+              </span>
+              {% endif %}
+              <button type="button" @click="$copy('{{ tx.tx_hash }}')" 
+                      class="shrink-0 rounded-lg border border-emerald-200 bg-white px-2 py-1 text-xs font-medium text-emerald-900 hover:bg-emerald-50">
+                Copy
+              </button>
+            </div>
+          </div>
+          {% endif %}
+        </div>
         {% endfor %}
-      </ul>
-    {% else %}
-      <div class="rounded-2xl border border-dashed border-emerald-200 bg-white p-6 text-center text-sm text-emerald-700/80">
-        <div class="mx-auto mb-2 h-8 w-8 rounded-full bg-emerald-50 ring-1 ring-emerald-100"></div>
-        <p class="font-medium">No on‑chain transactions yet</p>
-        <p class="mt-1 text-emerald-700/70">Executions will appear here as they confirm.</p>
-      </div>
-    {% endif %}
+      {% else %}
+        <div class="rounded-2xl border border-dashed border-emerald-200 bg-white p-8 text-center text-sm text-emerald-700/80">
+          <div class="mx-auto mb-3 h-12 w-12 rounded-full bg-emerald-50 ring-1 ring-emerald-100 flex items-center justify-center">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" class="h-6 w-6 text-emerald-600" fill="currentColor">
+              <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
+            </svg>
+          </div>
+          <p class="font-medium text-emerald-900">No executions yet</p>
+          <p class="mt-1 text-emerald-700/70">Voucher minting transactions will appear here.</p>
+        </div>
+      {% endif %}
+    </div>
   </section>
 
   <!-- Redeem -->
-  <section x-show="tab === 'redeem'" x-cloak class="space-y-4" aria-labelledby="redeem-title">
+  <section class="space-y-4" aria-labelledby="redeem-title">
     <div class="flex items-center justify-between">
-      <h2 id="redeem-title" class="text-xs font-semibold uppercase tracking-wide text-emerald-700/80">POS redemptions</h2>
-      <a href="/adv1/admin/pos/scanner" class="inline-flex items-center gap-2 rounded-full bg-emerald-600 px-4 py-2 text-xs font-semibold text-white shadow-sm hover:bg-emerald-700 transition-colors">
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" class="h-4 w-4" fill="currentColor">
-          <path d="M3 11h8V3H3v8zm2-6h4v4H5V5zm8-2v8h8V3h-8zm6 6h-4V5h4v4zM3 21h8v-8H3v8zm2-6h4v4H5v-4zm8 4h2v2h-2zm4-8h2v2h-2zm0 4h2v2h-2zm-4 0h2v2h-2zm-4-4h2v2h-2zm8 8h2v2h-2zm-4 0h2v2h-2z"/>
+      <h2 id="redeem-title" class="text-xl font-bold uppercase tracking-wide text-emerald-700/80">POS redemptions</h2>
+      <div class="flex items-center gap-2">
+
         </svg>
-        POS Scanner
-      </a>
-    </div>
-    {% if recent_redeems %}
-      <ul class="space-y-3">
-        {% for rec in recent_redeems %}
-        <li class="rounded-2xl border border-emerald-100 bg-white/90 p-4 shadow-sm transition hover:shadow-md">
-          <div class="flex items-start justify-between gap-3 text-sm text-emerald-900">
-            <p class="truncate font-semibold">{{ rec.voucher }}</p>
-            <time class="shrink-0 text-xs text-emerald-700/60">{{ rec.reserved_at|date:"Y-m-d H:i" }}</time>
-          </div>
-          <dl class="mt-3 grid grid-cols-2 gap-x-6 gap-y-2 text-[13px] text-emerald-900/90">
-            <div>
-              <dt class="font-semibold">Amount</dt>
-              <dd class="mt-0.5 font-semibold text-emerald-700">{{ rec.amount }}</dd>
-            </div>
-            <div>
-              <dt class="font-semibold">Wallet</dt>
-              <dd class="mt-0.5 font-mono text-[12px]">
-                {% if rec.wallet.address and explorer_addr_prefix %}
-                  <a target="_blank" rel="noopener" href="{{ explorer_addr_prefix }}{{ rec.wallet.address }}" class="text-emerald-700 hover:underline">{{ rec.wallet.short_address|default:'-' }}</a>
-                {% else %}
-                  {{ rec.wallet.short_address|default:'-' }}
-                {% endif %}
-              </dd>
-            </div>
-            <div>
-              <dt class="font-semibold">Terminal</dt>
-              <dd class="mt-0.5">{{ rec.terminal }}</dd>
-            </div>
-            <div>
-              <dt class="font-semibold">Status</dt>
-              <dd class="mt-0.5">
-                {% if rec.status == 'committed' %}
-                  <span class="inline-flex items-center rounded-full bg-emerald-50 px-3 py-1 text-emerald-900 ring-1 ring-emerald-200">Committed</span>
-                {% elif rec.status == 'reserved' %}
-                  <span class="inline-flex items-center rounded-full bg-amber-50 px-3 py-1 text-amber-800 ring-1 ring-amber-200">Reserved</span>
-                {% else %}
-                  <span class="inline-flex items-center rounded-full bg-slate-100 px-3 py-1 text-slate-700 ring-1 ring-slate-200">{{ rec.status }}</span>
-                {% endif %}
-              </dd>
-            </div>
-            {% if rec.committed_at %}
-            <div class="col-span-2">
-              <dt class="font-semibold">Committed at</dt>
-              <dd class="mt-0.5 text-[12px]">{{ rec.committed_at|date:"Y-m-d H:i" }}</dd>
-            </div>
-            {% endif %}
-          </dl>
-        </li>
-        {% endfor %}
-      </ul>
-    {% else %}
-      <div class="rounded-2xl border border-dashed border-emerald-200 bg-white p-6 text-center text-sm text-emerald-700/80">
-        <div class="mx-auto mb-2 h-8 w-8 rounded-full bg-emerald-50 ring-1 ring-emerald-100"></div>
-        <p class="font-medium">No POS redemption activity</p>
-        <p class="mt-1 text-emerald-700/70">Reservations and commits will show up here.</p>
+        <a href="/adv1/admin/pos/scanner" class="inline-flex items-center gap-2 rounded-full bg-emerald-600 px-4 py-2 text-xs font-semibold text-white shadow-sm hover:bg-emerald-700 transition-colors">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" class="h-4 w-4" fill="currentColor">
+            <path d="M3 11h8V3H3v8zm2-6h4v4H5V5zm8-2v8h8V3h-8zm6 6h-4V5h4v4zM3 21h8v-8H3v8zm2-6h4v4H5v-4zm8 4h2v2h-2zm4-8h2v2h-2zm0 4h2v2h-2zm-4 0h2v2h-2zm-4-4h2v2h-2zm8 8h2v2h-2zm-4 0h2v2h-2z"/>
+          </svg>
+          POS Scanner
+        </a>
       </div>
-    {% endif %}
+    </div>
+    
+    <!-- Scrollable POS Redemptions List -->
+    <div class="max-h-96 overflow-y-auto space-y-3 pr-2 scrollbar-thin scrollbar-thumb-emerald-200 scrollbar-track-transparent">
+      {% if recent_redeems %}
+        {% for rec in recent_redeems %}
+        <div class="rounded-2xl border border-emerald-100 bg-white/90 p-4 shadow-sm transition hover:shadow-md">
+          <div class="flex items-start justify-between gap-3 text-sm text-emerald-900">
+            <div class="min-w-0 flex-1">
+              <p class="truncate font-semibold text-emerald-950">{{ rec.voucher }}</p>
+              <p class="mt-1 truncate text-xs text-emerald-700/80">
+                Wallet <span class="font-mono">{{ rec.wallet.short_address|default:'-' }}</span> · 
+                Terminal {{ rec.terminal }}
+              </p>
+            </div>
+            <time class="shrink-0 text-xs text-emerald-700/60">{{ rec.reserved_at|date:"M d, H:i" }}</time>
+          </div>
+          
+          <div class="mt-3 grid grid-cols-2 gap-3 text-xs">
+            <div>
+              <span class="text-xs text-emerald-700/70">Amount</span>
+              <p class="font-semibold text-emerald-900">{{ rec.amount }}</p>
+            </div>
+            <div>
+              <span class="text-xs text-emerald-700/70">Status</span>
+              <div class="mt-1">
+                {% if rec.status == 'committed' %}
+                  <span class="inline-flex items-center rounded-full bg-emerald-50 px-2 py-1 text-xs font-medium text-emerald-900 ring-1 ring-emerald-200">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" class="h-3 w-3 mr-1" fill="currentColor">
+                      <path d="M9 16.17 4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
+                    </svg>
+                    Committed
+                  </span>
+                {% elif rec.status == 'reserved' %}
+                  <span class="inline-flex items-center rounded-full bg-amber-50 px-2 py-1 text-xs font-medium text-amber-800 ring-1 ring-amber-200">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" class="h-3 w-3 mr-1" fill="currentColor">
+                      <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
+                    </svg>
+                    Reserved
+                  </span>
+                {% else %}
+                  <span class="inline-flex items-center rounded-full bg-slate-100 px-2 py-1 text-xs font-medium text-slate-700 ring-1 ring-slate-200">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" class="h-3 w-3 mr-1" fill="currentColor">
+                      <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
+                    </svg>
+                    {{ rec.status }}
+                  </span>
+                {% endif %}
+              </div>
+            </div>
+          </div>
+          
+          {% if rec.committed_at %}
+          <div class="mt-3">
+            <span class="text-xs text-emerald-700/70">Committed at</span>
+            <p class="mt-1 text-xs text-emerald-900">{{ rec.committed_at|date:"Y-m-d H:i" }}</p>
+          </div>
+          {% endif %}
+        </div>
+        {% endfor %}
+      {% else %}
+        <div class="rounded-2xl border border-dashed border-emerald-200 bg-white p-8 text-center text-sm text-emerald-700/80">
+          <div class="mx-auto mb-3 h-12 w-12 rounded-full bg-emerald-50 ring-1 ring-emerald-100 flex items-center justify-center">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" class="h-6 w-6 text-emerald-600" fill="currentColor">
+              <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
+            </svg>
+          </div>
+          <p class="font-medium text-emerald-900">No POS redemption activity</p>
+          <p class="mt-1 text-emerald-700/70">Reservations and commits will show up here.</p>
+        </div>
+      {% endif %}
+    </div>
   </section>
 </div>
 {% endblock %}

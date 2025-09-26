@@ -1,7 +1,10 @@
 {% extends "base.html" %}
 {% block title %}Transfer Vouchers - Furama StayToken{% endblock %}
 {% block content %}
-<div x-data="walletExport()" class="space-y-4 rounded-2xl bg-white p-5 shadow">
+
+<!-- QR Code Library -->
+<script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
+<div x-data="walletExport()" x-init="loadUserVouchers()" class="space-y-4 rounded-2xl bg-white p-5 shadow">
   <div class="flex items-start gap-3">
     <div class="grid h-10 w-10 place-items-center rounded-xl bg-blue-600 text-lg font-semibold text-white">
       <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -29,15 +32,37 @@
   <div class="space-y-4">
     <label class="block">
       <span class="text-sm font-medium text-gray-700">Destination wallet address</span>
-      <div class="mt-1 text-xs text-gray-500 mb-2">Enter your personal wallet address (starts with 0x...)</div>
-      <input x-model="to" class="w-full rounded-xl border border-gray-300 p-3 font-mono text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500" placeholder="0x742d35Cc6634C0532925a3b8D4C9db96C4b4d8b6">
+      <div class="mt-1 text-xs text-gray-500 mb-2">Enter your personal wallet address (starts with 0x...) or scan QR code</div>
+      <div class="flex gap-2">
+        <input x-model="to" class="flex-1 rounded-xl border border-gray-300 p-3 font-mono text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500" placeholder="0x742d35Cc6634C0532925a3b8D4C9db96C4b4d8b6">
+        <button @click="scanWalletQR" class="rounded-xl border border-gray-300 bg-white px-4 py-3 text-sm font-medium text-gray-700 hover:bg-gray-50">
+          <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z"/>
+          </svg>
+          Scan QR
+        </button>
+      </div>
     </label>
     
     <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
       <label class="block">
         <span class="text-sm font-medium text-gray-700">Voucher type</span>
-        <div class="mt-1 text-xs text-gray-500 mb-2">Enter the voucher slug</div>
-        <input x-model="slug" class="w-full rounded-xl border border-gray-300 p-3 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500" placeholder="spa-30off-2025">
+        <div class="mt-1 text-xs text-gray-500 mb-2">Select voucher to transfer</div>
+        <select x-model="slug" class="w-full rounded-xl border border-gray-300 p-3 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
+          <option value="">Select a voucher...</option>
+          <template x-for="voucher in userVouchers" :key="voucher.slug">
+            <option x-show="voucher.balance > 0" :value="voucher.slug" x-text="`${voucher.name} (${voucher.balance} available)`"></option>
+          </template>
+          <option x-show="userVouchers.length > 0 && userVouchers.filter(v => v.balance > 0).length === 0" value="" disabled>No vouchers available</option>
+        </select>
+        
+        
+        <!-- Fallback manual input if no vouchers loaded or no available vouchers -->
+        <div x-show="userVouchers.length === 0 || userVouchers.filter(v => v.balance > 0).length === 0" class="mt-2">
+          <div class="text-xs text-gray-500 mb-2">Manual entry (if no available vouchers)</div>
+          <input x-model="slug" class="w-full rounded-xl border border-gray-300 p-3 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500" placeholder="spa-30off-2025">
+          <div class="text-xs text-gray-400 mt-1">You can still export your wallet QR code even without vouchers</div>
+        </div>
       </label>
       <label class="block">
         <span class="text-sm font-medium text-gray-700">Quantity</span>
@@ -69,6 +94,84 @@
         </div>
       </div>
     </div>
+    
+    <!-- Navigation buttons -->
+    <div class="grid grid-cols-3 gap-3 pt-4">
+      <button @click="showMyWalletQR" class="rounded-xl bg-blue-600 py-3 text-sm font-semibold text-white text-center">My Wallet QR</button>
+      <a href="/my-wallet" class="rounded-xl bg-slate-900 py-3 text-sm font-semibold text-white text-center">Back to Wallet</a>
+      <a href="/logout" class="rounded-xl border py-3 text-sm text-center">Sign out</a>
+    </div>
+  </div>
+</div>
+
+<!-- My Wallet QR Modal -->
+<div id="walletQRModal" class="fixed inset-0 z-50 hidden bg-black bg-opacity-50">
+  <div class="flex min-h-full items-center justify-center p-4">
+    <div class="w-full max-w-sm rounded-2xl bg-white p-6 shadow-xl">
+      <div class="flex items-center justify-between mb-4">
+        <h3 class="text-lg font-semibold text-gray-900">My Wallet Address</h3>
+        <button onclick="closeWalletQRModal()" class="text-gray-400 hover:text-gray-600">
+          <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+      </div>
+      
+      <div class="space-y-4">
+        <div class="text-center">
+          <div class="text-sm text-gray-500 mb-2">Wallet Address QR Code</div>
+          <img id="walletQRCode" src="" alt="Wallet QR" class="mx-auto h-48 w-48 rounded-xl border">
+        </div>
+        
+        <div class="space-y-2">
+          <button onclick="downloadWalletQR()" class="w-full flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-3 text-sm font-semibold text-white hover:bg-blue-700">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" class="h-4 w-4" fill="currentColor">
+              <path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/>
+            </svg>
+            Download QR Code
+          </button>
+          
+          <div class="text-center">
+            <div class="text-xs text-gray-500 mb-2">Share this QR code to receive vouchers</div>
+            <div class="text-xs text-gray-400">Others can scan this to send you vouchers</div>
+          </div>
+          
+          <button onclick="closeWalletQRModal()" class="w-full rounded-xl border px-4 py-3 text-sm font-semibold text-gray-700 hover:bg-gray-50">
+            Close
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- QR Scanner Modal -->
+<div id="qrScannerModal" class="fixed inset-0 z-50 hidden bg-black bg-opacity-50">
+  <div class="flex min-h-full items-center justify-center p-4">
+    <div class="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl">
+      <div class="flex items-center justify-between mb-4">
+        <h3 class="text-lg font-semibold text-gray-900">Scan Wallet QR Code</h3>
+        <button onclick="closeQRScannerModal()" class="text-gray-400 hover:text-gray-600">
+          <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+      </div>
+      
+      <div class="space-y-4">
+        <div class="text-center">
+          <div class="text-sm text-gray-500 mb-2">Point camera at wallet QR code</div>
+          <video id="qrScannerVideo" class="mx-auto h-64 w-64 rounded-xl border" autoplay playsinline></video>
+          <canvas id="qrScannerCanvas" class="hidden"></canvas>
+        </div>
+        
+        <div class="text-center">
+          <button onclick="closeQRScannerModal()" class="w-full rounded-xl border px-4 py-3 text-sm font-semibold text-gray-700 hover:bg-gray-50">
+            Cancel
+          </button>
+        </div>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -76,26 +179,37 @@
 function walletExport(){
   return {
     to: '',
-    slug: 'spa-30off-2025',
+    slug: '',
     amount: 1,
     sending: false,
+    myWalletAddress: '',
+    userVouchers: [],
     async sendTransfer(){
       const to = (this.to || '').trim();
       const slug = (this.slug || '').trim();
       const amount = Number(this.amount || 1);
       
       // Validation
-      if(!to || !to.startsWith('0x') || to.length < 10){ 
-        alert('Please enter a valid destination wallet address (starts with 0x...).'); 
+      if(!to || !to.startsWith('0x') || to.length !== 42){ 
+        alert('Please enter a valid destination wallet address (starts with 0x... and is 42 characters long).'); 
         return; 
       }
       if(!slug){ 
-        alert('Please enter the voucher slug.'); 
+        alert('Please select a voucher to transfer or use manual entry.'); 
         return; 
       }
       if(amount <= 0){ 
         alert('Quantity must be at least 1.'); 
         return; 
+      }
+      
+      // Check if user has enough vouchers (only if vouchers are loaded)
+      if(this.userVouchers.length > 0) {
+        const selectedVoucher = this.userVouchers.find(v => v.slug === slug);
+        if(selectedVoucher && amount > selectedVoucher.balance) {
+          alert(`You only have ${selectedVoucher.balance} ${selectedVoucher.name} vouchers available.`);
+          return;
+        }
       }
       
       this.sending = true;
@@ -105,12 +219,13 @@ function walletExport(){
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ to_address: to, voucher: slug, amount })
         });
+        
         const json = await res.json();
         if(json.ok){
-          alert('Transfer queued successfully! Please allow a short processing time.');
+          alert('Voucher ownership transferred successfully!');
           // Reset form
           this.to = '';
-          this.slug = 'spa-30off-2025';
+          this.slug = '';
           this.amount = 1;
         } else {
           alert('Error: ' + (json.error || 'Unknown error'));
@@ -120,9 +235,185 @@ function walletExport(){
       } finally {
         this.sending = false;
       }
+    },
+    
+    async showMyWalletQR() {
+      // Get user's wallet address
+      try {
+        const res = await fetch('/my-wallet');
+        const text = await res.text();
+        // Extract wallet address from response (simple approach)
+        const match = text.match(/0x[a-fA-F0-9]{40}/);
+        if (match) {
+          this.myWalletAddress = match[0];
+          generateWalletQR(this.myWalletAddress);
+          document.getElementById('walletQRModal').classList.remove('hidden');
+        } else {
+          alert('Could not find wallet address');
+        }
+      } catch (err) {
+        alert('Error getting wallet address');
+      }
+    },
+    
+    scanWalletQR() {
+      document.getElementById('qrScannerModal').classList.remove('hidden');
+      startWalletQRScanner();
+    },
+    
+    async loadUserVouchers() {
+      try {
+        const res = await fetch('/my-vouchers.json');
+        
+        if (!res.ok) {
+          throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+        }
+        
+        const data = await res.json();
+        this.userVouchers = data.vouchers || [];
+        
+        // Filter vouchers with balance > 0
+        const availableVouchers = this.userVouchers.filter(v => v.balance > 0);
+        
+        // Set default selection if only one available voucher
+        if (availableVouchers.length === 1) {
+          this.slug = availableVouchers[0].slug;
+        }
+      } catch (err) {
+        console.error('Error loading user vouchers:', err);
+        // Fallback to manual input
+        this.userVouchers = [];
+      }
     }
   };
 }
+
+// Wallet QR functions
+function generateWalletQR(address) {
+  const qrData = `wallet:${address}`;
+  const qrUrl = `/qr/wallet/${address.replace('0x', '')}.png`;
+  document.getElementById('walletQRCode').src = qrUrl;
+}
+
+function downloadWalletQR() {
+  const qrImage = document.getElementById('walletQRCode');
+  if (!qrImage || !qrImage.src) {
+    alert('QR code not available');
+    return;
+  }
+  
+  const link = document.createElement('a');
+  link.href = qrImage.src;
+  link.download = 'my-wallet-qr.png';
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+}
+
+function closeWalletQRModal() {
+  document.getElementById('walletQRModal').classList.add('hidden');
+}
+
+// QR Scanner functions
+let qrScannerStream = null;
+
+function startWalletQRScanner() {
+  navigator.mediaDevices.getUserMedia({ 
+    video: { 
+      facingMode: 'environment' 
+    } 
+  })
+  .then(stream => {
+    qrScannerStream = stream;
+    const video = document.getElementById('qrScannerVideo');
+    video.srcObject = stream;
+    video.play();
+    
+    // Wait for video to be ready, then start scanning
+    video.addEventListener('loadedmetadata', () => {
+      scanWalletQRCode();
+    });
+  })
+  .catch(err => {
+    console.error('Camera access denied:', err);
+    alert('Camera access is required to scan QR codes');
+  });
+}
+
+function scanWalletQRCode() {
+  const video = document.getElementById('qrScannerVideo');
+  const canvas = document.getElementById('qrScannerCanvas');
+  const ctx = canvas.getContext('2d');
+  
+  if (video.readyState >= 2) {
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    
+    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    
+    // Use jsQR library to decode
+    if (typeof jsQR !== 'undefined') {
+      const code = jsQR(imageData.data, imageData.width, imageData.height);
+      if (code) {
+        console.log('QR Code detected:', code.data);
+        const walletAddress = extractWalletAddress(code.data);
+        if (walletAddress) {
+          console.log('Wallet address extracted:', walletAddress);
+          // Set the scanned address directly to the input field
+          const toInput = document.querySelector('input[x-model="to"]');
+          if (toInput) {
+            toInput.value = walletAddress;
+            // Trigger Alpine.js update
+            toInput.dispatchEvent(new Event('input', { bubbles: true }));
+          }
+          closeQRScannerModal();
+          return;
+        } else {
+          console.log('Invalid wallet QR format:', code.data);
+        }
+      }
+    }
+  }
+  
+  // Continue scanning
+  setTimeout(() => {
+    scanWalletQRCode();
+  }, 100);
+}
+
+function extractWalletAddress(qrData) {
+  // Handle different QR formats
+  if (qrData.startsWith('wallet:')) {
+    return qrData.substring(7);
+  } else if (qrData.startsWith('0x') && qrData.length === 42) {
+    return qrData;
+  } else if (qrData.startsWith('ethereum:')) {
+    return qrData.substring(9);
+  }
+  return null;
+}
+
+function closeQRScannerModal() {
+  document.getElementById('qrScannerModal').classList.add('hidden');
+  if (qrScannerStream) {
+    qrScannerStream.getTracks().forEach(track => track.stop());
+    qrScannerStream = null;
+  }
+}
+
+// Close modals when clicking outside
+document.getElementById('walletQRModal').addEventListener('click', function(e) {
+  if (e.target === this) {
+    closeWalletQRModal();
+  }
+});
+
+document.getElementById('qrScannerModal').addEventListener('click', function(e) {
+  if (e.target === this) {
+    closeQRScannerModal();
+  }
+});
 </script>
 {% endblock %}
 

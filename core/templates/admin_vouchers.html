@@ -18,7 +18,6 @@
     </form>
     <div class="mt-3 flex gap-2">
       <a href="/adv1/admin/vouchers/new" class="inline-flex items-center rounded-xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white">New voucher</a>
-      <button onclick="exportVoucherQRs()" class="inline-flex items-center rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white">Export QR Codes</button>
     </div>
   </section>
 
@@ -57,7 +56,7 @@
             <div>{{ it.created_at|date:'Y-m-d H:i'|default:"N/A" }}</div>
             <div class="flex items-center gap-2">
               <a href="/adv1/admin/vouchers/{{ it.slug }}/edit" class="rounded border px-2 py-1 text-xs">Edit</a>
-              <a href="/adv1/admin/vouchers/{{ it.slug }}/codes" class="rounded border px-2 py-1 text-xs text-blue-700">Codes</a>
+              <button onclick="showQRModal('{{ it.slug }}', '{{ it.name }}')" class="rounded border px-2 py-1 text-xs text-blue-700">Export QR</button>
               <form method="post" action="/adv1/admin/vouchers/{{ it.slug }}/delete" onsubmit="return confirm('Delete voucher {{ it.slug }}?');">
                 {% csrf_token %}
                 <button class="rounded border px-2 py-1 text-xs text-rose-700">Delete</button>
@@ -88,61 +87,152 @@
   </section>
 </div>
 
+<!-- QR Code Modal -->
+<div id="qrModal" class="fixed inset-0 z-50 hidden bg-black bg-opacity-50">
+  <div class="flex min-h-full items-center justify-center p-4">
+    <div class="w-full max-w-md rounded-2xl bg-white p-6">
+      <div class="flex items-center justify-between mb-4">
+        <h3 class="text-lg font-semibold text-slate-900" id="qrModalTitle">Voucher QR Code</h3>
+        <button onclick="closeQRModal()" class="text-slate-400 hover:text-slate-600">
+          <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+          </svg>
+        </button>
+      </div>
+      
+      <div class="text-center">
+        <div class="mb-4">
+          <img id="qrImage" src="" alt="Voucher QR Code" class="mx-auto h-48 w-48 rounded-xl border" style="display: none;">
+          <div id="qrLoading" class="mx-auto h-48 w-48 rounded-xl border bg-white flex items-center justify-center text-slate-500">
+            <div>
+              <svg class="animate-spin h-8 w-8 mx-auto" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+              </svg>
+              <p class="mt-2 text-sm">Loading QR...</p>
+            </div>
+          </div>
+        </div>
+        
+        <div class="mb-4">
+          <p class="text-sm text-slate-600" id="qrModalDescription">Scan this QR code to claim the voucher</p>
+        </div>
+        
+        <div class="flex gap-2">
+          <button onclick="downloadQR()" class="flex-1 rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700">
+            Download QR
+          </button>
+          <button onclick="closeQRModal()" class="rounded-xl border px-4 py-2 text-sm text-slate-600">
+            Close
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+
 <script>
-function exportVoucherQRs() {
-  // Get selected vouchers or all vouchers
-  const selectedVouchers = getSelectedVouchers();
-  if (selectedVouchers.length === 0) {
-    alert('Please select vouchers to export QR codes for.');
+let currentQRImage = null;
+
+function showQRModal(slug, name) {
+  // Set modal title and description
+  document.getElementById('qrModalTitle').textContent = `${name} QR Code`;
+  document.getElementById('qrModalDescription').textContent = `Scan this QR code to claim the ${name} voucher`;
+  
+  // Show modal
+  document.getElementById('qrModal').classList.remove('hidden');
+  
+  // Show loading
+  document.getElementById('qrLoading').style.display = 'flex';
+  document.getElementById('qrImage').style.display = 'none';
+  
+  // Generate QR code via API
+  generateQRCode(slug, name);
+}
+
+function generateQRCode(slug, name) {
+  // Show loading state
+  const loading = document.getElementById('qrLoading');
+  const qrImage = document.getElementById('qrImage');
+  
+  // Reset loading content
+  loading.innerHTML = `
+    <div>
+      <svg class="animate-spin h-8 w-8 mx-auto" fill="none" viewBox="0 0 24 24">
+        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+      </svg>
+      <p class="mt-2 text-sm">Generating QR code...</p>
+    </div>
+  `;
+  loading.style.display = 'flex';
+  qrImage.style.display = 'none';
+  
+  // Call API to generate QR code
+  fetch(`/adv1/admin/vouchers/${slug}/generate-qr`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+    }
+  })
+  .then(response => response.json())
+  .then(data => {
+    if (data.success) {
+      // Load the generated QR image
+      qrImage.src = data.qr_url;
+      qrImage.onload = function() {
+        // Hide loading and show QR image
+        loading.style.display = 'none';
+        qrImage.style.display = 'block';
+        currentQRImage = data.qr_url;
+      };
+      qrImage.onerror = function() {
+        // Show error if image fails to load
+        loading.innerHTML = '<div class="text-red-500 text-sm">Error loading QR code</div>';
+      };
+    } else {
+      // Show error message
+      loading.innerHTML = '<div class="text-red-500 text-sm">' + (data.message || 'Error generating QR code') + '</div>';
+    }
+  })
+  .catch(error => {
+    console.error('Error generating QR code:', error);
+    loading.innerHTML = '<div class="text-red-500 text-sm">Network error generating QR code</div>';
+  });
+}
+
+function closeQRModal() {
+  document.getElementById('qrModal').classList.add('hidden');
+  currentQRImage = null;
+}
+
+function downloadQR() {
+  if (!currentQRImage) {
+    alert('QR code not available');
     return;
   }
   
-  // Show loading
-  const button = event.target;
-  const originalText = button.textContent;
-  button.textContent = 'Generating PDF...';
-  button.disabled = true;
+  // Create download link
+  const link = document.createElement('a');
+  link.href = currentQRImage;
+  link.download = `voucher-${document.getElementById('qrModalTitle').textContent.toLowerCase().replace(/\s+/g, '-')}-qr.png`;
   
-  // Create form and submit
-  const form = document.createElement('form');
-  form.method = 'POST';
-  form.action = '/adv1/admin/vouchers/export-qr-pdf';
-  
-  // Add CSRF token
-  const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]');
-  if (csrfToken) {
-    form.appendChild(csrfToken.cloneNode());
-  }
-  
-  // Add selected vouchers
-  selectedVouchers.forEach(slug => {
-    const input = document.createElement('input');
-    input.type = 'hidden';
-    input.name = 'vouchers';
-    input.value = slug;
-    form.appendChild(input);
-  });
-  
-  document.body.appendChild(form);
-  form.submit();
-  
-  // Reset button after a delay
-  setTimeout(() => {
-    button.textContent = originalText;
-    button.disabled = false;
-  }, 3000);
+  // Trigger download
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
 }
 
-function getSelectedVouchers() {
-  // For now, return all vouchers on the page
-  // In a real implementation, you might have checkboxes for selection
-  const vouchers = [];
-  document.querySelectorAll('[data-voucher-slug]').forEach(el => {
-    vouchers.push(el.dataset.voucherSlug);
-  });
-  return vouchers;
-}
+// Close modal when clicking outside
+document.getElementById('qrModal').addEventListener('click', function(e) {
+  if (e.target === this) {
+    closeQRModal();
+  }
+});
 </script>
+
 {% endblock %}
 
 

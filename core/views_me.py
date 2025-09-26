@@ -73,11 +73,13 @@ def me(request):
             # Get QRClaim codes for each voucher
             from .models import QRClaim
             for it in balances:
-                # Get the latest QRClaim for this user and voucher
+                # Get the first unused QRClaim for this user and voucher
                 qr_claim = QRClaim.objects.filter(
                     used_by_user=user,
-                    voucher_type__slug=it["slug"]
-                ).order_by('-created_at').first()
+                    voucher_type__slug=it["slug"],
+                    status='new',
+                    used_at__isnull=True
+                ).order_by('created_at').first()
                 
                 qr_code = qr_claim.code if qr_claim else None
                 
@@ -162,11 +164,21 @@ def my_vouchers(request):
                 ORDER BY vt.slug
             """, [str(wallet["id"])])
             for slug, name, bal in cur.fetchall():
-                # Get the latest QRClaim for this user and voucher
+                # Get the first unused QRClaim for this user and voucher
                 qr_claim = QRClaim.objects.filter(
                     used_by_user=user,
-                    voucher_type__slug=slug
-                ).order_by('-created_at').first()
+                    voucher_type__slug=slug,
+                    status='new',
+                    used_at__isnull=True
+                ).order_by('created_at').first()
+                
+                # If no QRClaim exists, create one for this user
+                if not qr_claim:
+                    from .models import VoucherType
+                    voucher_type = VoucherType.objects.filter(slug=slug).first()
+                    if voucher_type:
+                        from .services import create_qr_claim_for_user
+                        qr_claim = create_qr_claim_for_user(user, voucher_type)
                 
                 qr_claim_code = qr_claim.code if qr_claim else None
                 
@@ -178,3 +190,53 @@ def my_vouchers(request):
                 })
 
     return render(request, "me_vouchers.html", {"wallet": wallet, "balances": balances})
+
+
+@login_required
+def my_vouchers_json(request):
+    """API endpoint to get user's vouchers as JSON"""
+    user = get_current_user(request)
+    
+    # Get wallet
+    with connection.cursor() as cur:
+        cur.execute("""
+            SELECT w.id, '0x' || encode(w.address,'hex') AS address_hex, w.created_at
+            FROM wallet w
+            WHERE w.user_id=%s AND w.chain_id=%s
+            ORDER BY w.created_at DESC
+            LIMIT 1
+        """, [str(user.id), settings.ST_CHAIN_ID])
+        row = cur.fetchone()
+    wallet = {"id": row[0], "address_hex": row[1], "created_at": row[2]} if row else None
+
+    vouchers = []
+    if wallet:
+        # Get QRClaim codes for each voucher
+        from .models import QRClaim
+        with connection.cursor() as cur:
+            cur.execute("""
+                SELECT vt.slug, vt.name, vb.balance
+                FROM voucher_balance vb
+                JOIN voucher_type vt ON vt.id = vb.voucher_type_id
+                WHERE vb.wallet_id=%s
+                ORDER BY vt.slug
+            """, [str(wallet["id"])])
+            for slug, name, bal in cur.fetchall():
+                # Get the first unused QRClaim for this user and voucher
+                qr_claim = QRClaim.objects.filter(
+                    used_by_user=user,
+                    voucher_type__slug=slug,
+                    status='new',
+                    used_at__isnull=True
+                ).order_by('created_at').first()
+                
+                qr_claim_code = qr_claim.code if qr_claim else None
+                
+                vouchers.append({
+                    "slug": slug, 
+                    "name": name, 
+                    "balance": int(bal),
+                    "qr_claim_code": qr_claim_code
+                })
+
+    return JsonResponse({"vouchers": vouchers})

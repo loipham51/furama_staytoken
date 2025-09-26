@@ -11,6 +11,7 @@ from .services import (
     debit_voucher,
     enqueue_onchain,
     get_or_create_external_wallet,
+    transfer_voucher_ownership,
 )
 
 def export_view(request):
@@ -28,8 +29,8 @@ def transfer_view(request):
         to_address = (payload.get("to_address") or "").strip()
         slug = (payload.get("voucher") or "").strip()
         amount = int(payload.get("amount", 1))
-    except Exception:
-        return HttpResponseBadRequest("Bad JSON")
+    except Exception as e:
+        return JsonResponse({"ok": False, "error": f"Bad JSON: {str(e)}"}, status=400)
 
     if not to_address:
         return JsonResponse({"ok": False, "error": "Destination address required"}, status=400)
@@ -37,6 +38,7 @@ def transfer_view(request):
         return JsonResponse({"ok": False, "error": "Amount must be positive"}, status=400)
 
     user = get_current_user(request)
+    
     # Tìm wallet thật của user theo session
     voucher = VoucherType.objects.filter(slug=slug, active=True).first()
     if not voucher:
@@ -53,7 +55,10 @@ def transfer_view(request):
 
     try:
         external_wallet = get_or_create_external_wallet(user, settings.ST_CHAIN_ID, to_address)
-        debit_voucher(wallet, voucher, amount, reason="export", to_wallet=external_wallet)
+        
+        # Transfer voucher ownership in database only (no blockchain)
+        transfer_voucher_ownership(wallet, external_wallet, voucher, amount)
+        
     except (ValueError, PermissionError) as exc:
         return JsonResponse({"ok": False, "error": str(exc)}, status=400)
 
@@ -64,16 +69,9 @@ def transfer_view(request):
         .first()
     )
 
-    tx = enqueue_onchain(
-        kind="safeTransfer1155",
-        voucher=voucher,
-        to_wallet=external_wallet,
-        amount=amount,
-    )
-
     return JsonResponse({
         "ok": True,
-        "queued_tx_id": str(tx.id),
         "destination": external_wallet.address_hex,
         "remaining_balance": int(new_balance) if new_balance is not None else 0,
+        "message": "Voucher ownership transferred successfully"
     })
