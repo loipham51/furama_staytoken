@@ -59,36 +59,6 @@ Furama StayToken revolutionizes the traditional paper voucher system by leveragi
 
 ---
 
-## 🏗️ **System Architecture**
-
-```mermaid
-graph TB
-    A[Guest Mobile App] --> B[Web Interface]
-    B --> C[Django Backend]
-    C --> D[PostgreSQL Database]
-    C --> E[Blockchain Network]
-    C --> F[QR Code Generator]
-    
-    G[POS Terminal] --> H[Admin Dashboard]
-    H --> C
-    
-    I[Hotel Staff] --> H
-    
-    subgraph "Blockchain Layer"
-        E --> J[ERC-1155 Contract]
-        J --> K[Token Minting]
-        J --> L[Token Transfer]
-    end
-    
-    subgraph "Storage Layer"
-        D --> M[User Data]
-        D --> N[Voucher Records]
-        D --> O[Transaction Logs]
-    end
-```
-
----
-
 ## 🚀 **Quick Start**
 
 ### **Prerequisites**
