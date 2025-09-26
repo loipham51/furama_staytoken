@@ -80,7 +80,7 @@
         type="text" 
         x-model="manualCode"
         @keyup.enter="processVoucherCode(manualCode)"
-        placeholder="Enter QRClaim code (e.g., spa-30off-2025_a1b2c3d4)..."
+        placeholder="Enter QRClaim code (e.g., cafe-indochine-20-off-2025_c6b833b5)..."
         class="flex-1 rounded-xl border border-slate-300 px-3 py-2 text-sm placeholder:text-slate-500 focus:border-blue-600 focus:outline-none"
       />
       <button 
@@ -109,7 +109,7 @@
       <div class="rounded-xl bg-slate-50 p-4">
           <div class="grid grid-cols-1 gap-4 text-sm">
           <div>
-            <p class="font-medium text-slate-600">QR Code</p>
+            <p class="font-medium text-slate-600">QRClaim Code</p>
             <p class="font-mono text-slate-900" x-text="voucherData?.qr_code || 'Unknown'"></p>
           </div>
           
@@ -183,8 +183,8 @@
     </div>
   </section>
 
-  <!-- Success/Error Messages -->
-  <div x-show="message" 
+  <!-- Success/Error Messages (Inline) -->
+  <div x-show="message && !isRedemptionSuccess" 
        x-transition:enter="transition ease-out duration-300"
        x-transition:enter-start="opacity-0 transform scale-95"
        x-transition:enter-end="opacity-100 transform scale-100"
@@ -195,57 +195,11 @@
        :class="messageType === 'success' ? 'bg-green-50 border-green-200 shadow-lg' : 'bg-red-50 border-red-200'">
     
     <!-- Debug Info -->
-    <div class="mb-4 p-3 bg-gray-100 rounded-lg text-xs" style="display: none;">
+    <div class="mb-4 p-3 bg-gray-100 rounded-lg text-xs">
       <strong>Debug:</strong> 
       messageType: <span x-text="messageType"></span> | 
       isRedemptionSuccess: <span x-text="isRedemptionSuccess"></span> | 
       message: <span x-text="message"></span>
-    </div>
-
-    <!-- Redemption Success Message -->
-    <div x-show="messageType === 'success' && isRedemptionSuccess" class="text-center">
-      <div class="mx-auto mb-4 grid h-16 w-16 place-items-center rounded-full bg-green-100">
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" class="h-8 w-8 text-green-600" fill="currentColor">
-          <path d="M9 16.17 4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
-        </svg>
-      </div>
-      <h3 class="text-lg font-semibold text-green-800 mb-2">🎉 Redemption Successful!</h3>
-      <p class="text-green-700 mb-4" x-text="message"></p>
-      <div class="flex items-center justify-center gap-2 text-sm text-green-600 mb-4">
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" class="h-4 w-4" fill="currentColor">
-          <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
-        </svg>
-        <span>Voucher has been redeemed and marked as used</span>
-      </div>
-      
-      <div class="flex gap-3 justify-center">
-        <button 
-          @click="clearMessage()"
-          class="rounded-xl bg-green-600 px-6 py-2 text-sm font-semibold text-white hover:bg-green-700 transition-colors"
-        >
-          Scan Another Voucher
-        </button>
-        <button 
-          @click="clearMessage(); clearVoucherData()"
-          class="rounded-xl border border-green-300 px-6 py-2 text-sm font-semibold text-green-700 hover:bg-green-50 transition-colors"
-        >
-          Clear All
-        </button>
-        <!-- Debug button -->
-        <button 
-          @click="showSuccessMessage('Test success message')"
-          class="rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 transition-colors"
-        >
-          Test Success
-        </button>
-        <!-- Test QR button -->
-        <button 
-          @click="processVoucherCode('hai-van-lounge-free-cocktail_52db6a38')"
-          class="rounded-xl bg-purple-600 px-4 py-2 text-sm font-semibold text-white hover:bg-purple-700 transition-colors"
-        >
-          Test QR
-        </button>
-      </div>
     </div>
 
     <!-- Validation Success Message -->
@@ -277,6 +231,123 @@
         >
           Try Again
         </button>
+      </div>
+    </div>
+
+    <!-- Test Success Button -->
+    <div class="mt-4 text-center">
+      <button 
+        @click="showSuccessMessage('Test success message - voucher redeemed!')"
+        class="rounded-xl bg-green-600 px-4 py-2 text-sm font-semibold text-white hover:bg-green-700 transition-colors"
+      >
+        Test Success Popup
+      </button>
+    </div>
+  </div>
+
+  <!-- Scan Success Modal Popup -->
+  <div x-show="messageType === 'success' && !isRedemptionSuccess" 
+       x-transition:enter="transition ease-out duration-300"
+       x-transition:enter-start="opacity-0"
+       x-transition:enter-end="opacity-100"
+       x-transition:leave="transition ease-in duration-200"
+       x-transition:leave-start="opacity-100"
+       x-transition:leave-end="opacity-0"
+       class="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
+       style="display: none;">
+    
+    <div x-transition:enter="transition ease-out duration-300"
+         x-transition:enter-start="opacity-0 transform scale-95"
+         x-transition:enter-end="opacity-100 transform scale-100"
+         x-transition:leave="transition ease-in duration-200"
+         x-transition:leave-start="opacity-100 transform scale-100"
+         x-transition:leave-end="opacity-0 transform scale-95"
+         class="mx-4 w-full max-w-sm rounded-2xl bg-white p-8 text-center shadow-2xl">
+      
+      <!-- Success Icon -->
+      <div class="mx-auto mb-6 grid h-20 w-20 place-items-center rounded-full bg-green-100">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" class="h-10 w-10 text-green-600" fill="currentColor">
+          <path d="M9 16.17 4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
+        </svg>
+      </div>
+      
+      <!-- Success Message -->
+      <h3 class="mb-3 text-2xl font-bold text-gray-900">🎉 QR Scan Successful!</h3>
+      <p class="mb-6 text-gray-600" x-text="message"></p>
+      
+      <!-- Voucher Details (if available) -->
+      <div x-show="voucherData" class="mb-6 space-y-2 text-sm">
+        <div class="rounded-lg bg-gray-50 p-3">
+          <div class="font-semibold text-gray-900" x-text="voucherData?.name"></div>
+          <div class="text-gray-600">Guest: <span x-text="voucherData?.user_name"></span></div>
+          <div class="text-gray-600">Balance: <span x-text="voucherData?.balance"></span></div>
+        </div>
+      </div>
+      
+      <!-- Success Details -->
+      <div class="mb-6 flex items-center justify-center gap-2 text-sm text-green-600">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" class="h-4 w-4" fill="currentColor">
+          <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
+        </svg>
+        <span>Voucher is valid and ready for redemption</span>
+      </div>
+      
+      <!-- Auto-close notice -->
+      <div class="mb-4 text-xs text-gray-500">
+        This message will auto-close in 5 seconds...
+      </div>
+      
+      <!-- Close Button -->
+      <button 
+        @click="clearMessage()"
+        class="w-full rounded-xl bg-emerald-600 px-6 py-3 text-sm font-semibold text-white hover:bg-emerald-700 transition-colors"
+      >
+        Continue Now
+      </button>
+    </div>
+  </div>
+
+  <!-- Redemption Success Modal Popup -->
+  <div x-show="messageType === 'success' && isRedemptionSuccess" 
+       x-transition:enter="transition ease-out duration-300"
+       x-transition:enter-start="opacity-0"
+       x-transition:enter-end="opacity-100"
+       x-transition:leave="transition ease-in duration-200"
+       x-transition:leave-start="opacity-100"
+       x-transition:leave-end="opacity-0"
+       class="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
+       style="display: none;">
+    
+    <div x-transition:enter="transition ease-out duration-300"
+         x-transition:enter-start="opacity-0 transform scale-95"
+         x-transition:enter-end="opacity-100 transform scale-100"
+         x-transition:leave="transition ease-in duration-200"
+         x-transition:leave-start="opacity-100 transform scale-100"
+         x-transition:leave-end="opacity-0 transform scale-95"
+         class="mx-4 w-full max-w-sm rounded-2xl bg-white p-8 text-center shadow-2xl">
+      
+      <!-- Success Icon -->
+      <div class="mx-auto mb-6 grid h-20 w-20 place-items-center rounded-full bg-green-100">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" class="h-10 w-10 text-green-600" fill="currentColor">
+          <path d="M9 16.17 4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
+        </svg>
+      </div>
+      
+      <!-- Success Message -->
+      <h3 class="mb-3 text-2xl font-bold text-gray-900">🎉 Redemption Successful!</h3>
+      <p class="mb-6 text-gray-600" x-text="message"></p>
+      
+      <!-- Success Details -->
+      <div class="mb-6 flex items-center justify-center gap-2 text-sm text-green-600">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" class="h-4 w-4" fill="currentColor">
+          <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
+        </svg>
+        <span>Voucher has been redeemed and marked as used</span>
+      </div>
+      
+      <!-- Auto-close notice -->
+      <div class="text-xs text-gray-500">
+        This message will auto-close in 3 seconds...
       </div>
     </div>
   </div>
@@ -371,17 +442,23 @@ function posScannerView() {
     async processVoucherCode(qrData) {
       if (!qrData || !qrData.trim()) return;
       
-      console.log('Processing QR data:', qrData);
-      
       this.processing = true;
       this.clearMessage();
       
-      // Show QR data in UI for debugging
-      this.showMessage(`QR Code detected: ${qrData}`, 'success');
-      
       try {
-        // Just validate the QR code directly
-        await this.validateVoucher(qrData.trim());
+        // Extract QRClaim code from different QR formats
+        let qrClaimCode = this.extractQRClaimCode(qrData.trim());
+        
+        if (!qrClaimCode) {
+          this.showMessage('Invalid QR code format. Expected QRClaim code (e.g., cafe-indochine-20-off-2025_c6b833b5)', 'error');
+          return;
+        }
+        
+        // Show extracted QRClaim code
+        this.showMessage(`QRClaim Code: ${qrClaimCode}`, 'success');
+        
+        // Validate the QRClaim code
+        await this.validateVoucher(qrClaimCode);
         
       } catch (error) {
         this.showMessage('Error processing voucher: ' + error.message, 'error');
@@ -389,6 +466,55 @@ function posScannerView() {
       } finally {
         this.processing = false;
       }
+    },
+
+    extractQRClaimCode(qrData) {
+      // Handle different QR code formats
+      
+      // Format 1: Direct QRClaim code (e.g., "cafe-indochine-20-off-2025_c6b833b5")
+      if (qrData.includes('_') && qrData.length > 10) {
+        return qrData;
+      }
+      
+      // Format 2: Claim URL (e.g., "/claim/cafe-indochine-20-off-2025_c6b833b5/")
+      if (qrData.includes('/claim/')) {
+        const match = qrData.match(/\/claim\/([^\/]+)\/?/);
+        if (match && match[1]) {
+          return match[1];
+        }
+      }
+      
+      // Format 3: Full claim URL (e.g., "https://domain.com/claim/cafe-indochine-20-off-2025_c6b833b5/")
+      if (qrData.includes('claim/')) {
+        const match = qrData.match(/claim\/([^\/\?]+)/);
+        if (match && match[1]) {
+          return match[1];
+        }
+      }
+      
+      // Format 4: Voucher QR format (e.g., "voucher:cafe-indochine-20-off-2025:claim")
+      if (qrData.startsWith('voucher:')) {
+        const parts = qrData.split(':');
+        if (parts.length >= 2) {
+          const slug = parts[1];
+          this.showMessage(`This is a voucher QR code (${slug}), not a QRClaim code. Please scan the QR code from the user's voucher after they have claimed it.`, 'error');
+          return null;
+        }
+      }
+      
+      // Format 5: Wallet address (should not be used for POS)
+      if (qrData.startsWith('0x') && qrData.length === 42) {
+        this.showMessage('This appears to be a wallet address, not a QRClaim code. Please scan the QR code from the user\'s voucher after they have claimed it.', 'error');
+        return null;
+      }
+      
+      // Format 6: Wallet address with prefix (should not be used for POS)
+      if (qrData.startsWith('wallet:0x') && qrData.length > 50) {
+        this.showMessage('This is a wallet QR code, not a QRClaim code. Please scan the QR code from the user\'s voucher after they have claimed it (the one that shows "QR Code: cafe-indochine-20-off-2025_c6b833b5").', 'error');
+        return null;
+      }
+      
+      return null;
     },
 
     async validateVoucher(qrCode) {
@@ -423,7 +549,8 @@ function posScannerView() {
           };
           
           if (data.is_valid) {
-            this.showValidationSuccess('✅ Voucher is valid and ready for redemption');
+            // Show scan success modal popup immediately when QR scan is successful
+            this.showScanSuccess('✅ Voucher is valid and ready for redemption');
           } else {
             this.showMessage(data.message, 'error');
           }
@@ -463,12 +590,13 @@ function posScannerView() {
         console.log('Redemption response:', response.status, data);
         
         if (response.ok && data.success) {
-          console.log('Showing success message:', data.message);
+          console.log('✅ REDEMPTION SUCCESS - Showing success message:', data.message);
           this.showSuccessMessage(data.message || 'Voucher redeemed successfully!');
+          console.log('✅ showSuccessMessage called, modal should appear');
           // Don't clear voucher data immediately, let user see the success message
           // this.clearVoucherData();
         } else {
-          console.log('Showing error message:', data.message);
+          console.log('❌ REDEMPTION FAILED - Showing error message:', data.message);
           this.showMessage(data.message || 'Failed to redeem voucher', 'error');
         }
         
@@ -492,32 +620,19 @@ function posScannerView() {
       this.messageType = type;
       console.log('Message set:', this.message, 'Type:', this.messageType);
       
-      // Auto-hide success messages after 5 seconds
-      if (type === 'success') {
-        setTimeout(() => {
-          this.clearMessage();
-        }, 5000);
-      }
+      // Don't auto-hide success messages - keep them visible
     },
 
-    showSuccessMessage(text) {
-      console.log('showSuccessMessage called with:', text);
+    showScanSuccess(text) {
+      console.log('showScanSuccess called with:', text);
+      
+      // Stop camera immediately when scan is successful
+      this.stopScanner();
+      
       this.message = text;
       this.messageType = 'success';
-      this.isRedemptionSuccess = true; // Flag to show redemption success UI
-      console.log('Message set:', this.message, 'Type:', this.messageType, 'IsRedemption:', this.isRedemptionSuccess);
-      
-      // Force Alpine.js to update the DOM
-      this.$nextTick(() => {
-        console.log('DOM updated, checking visibility...');
-        const successDiv = document.querySelector('[x-show="messageType === \'success\' && isRedemptionSuccess"]');
-        if (successDiv) {
-          console.log('Success div found:', successDiv);
-          console.log('Success div style:', successDiv.style.display);
-        } else {
-          console.log('Success div not found!');
-        }
-      });
+      this.isRedemptionSuccess = false; // Flag to show scan success UI (not redemption)
+      console.log('Scan success - Message set:', this.message, 'Type:', this.messageType, 'IsRedemption:', this.isRedemptionSuccess);
       
       // Play success sound (if available)
       try {
@@ -528,21 +643,36 @@ function posScannerView() {
         // Ignore audio errors
       }
       
-      // Auto-hide after 8 seconds for success messages
+      // Auto-close scan success modal after 5 seconds
       setTimeout(() => {
         this.clearMessage();
-      }, 8000);
+      }, 5000);
+    },
+
+    showSuccessMessage(text) {
+      console.log('showSuccessMessage called with:', text);
+      
+      this.message = text;
+      this.messageType = 'success';
+      this.isRedemptionSuccess = true; // Flag to show redemption success UI
+      console.log('Redemption success - Message set:', this.message, 'Type:', this.messageType, 'IsRedemption:', this.isRedemptionSuccess);
+      
+      // Auto-clear after 3 seconds for redemption success
+      setTimeout(() => {
+        this.clearMessage();
+        this.clearVoucherData();
+      }, 3000);
     },
 
     showValidationSuccess(text) {
+      // Stop camera when validation is successful
+      this.stopScanner();
+      
       this.message = text;
       this.messageType = 'success';
       this.isRedemptionSuccess = false; // Flag to show validation success UI
       
-      // Auto-hide after 5 seconds for validation messages
-      setTimeout(() => {
-        this.clearMessage();
-      }, 5000);
+      // Don't auto-hide validation success messages - keep them visible
     },
 
     clearMessage() {

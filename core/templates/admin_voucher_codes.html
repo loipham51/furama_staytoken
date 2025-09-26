@@ -15,7 +15,6 @@
     <div class="mt-3 flex gap-2">
       <a href="/adv1/admin/vouchers" class="inline-flex items-center rounded-xl bg-slate-600 px-4 py-2 text-sm font-semibold text-white">← Back to Vouchers</a>
       <button onclick="generateCodes()" class="inline-flex items-center rounded-xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white">Generate Codes</button>
-      <button onclick="exportCodes()" class="inline-flex items-center rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white">Export CSV</button>
     </div>
   </section>
 
@@ -231,12 +230,5 @@ function expireCode(code) {
   }
 }
 
-function exportCodes() {
-  const params = new URLSearchParams();
-  if ('{{ q }}') params.append('q', '{{ q }}');
-  if ('{{ status }}') params.append('status', '{{ status }}');
-  
-  window.open(`/adv1/admin/vouchers/{{ voucher.slug }}/export-codes?${params.toString()}`);
-}
 </script>
 {% endblock %}

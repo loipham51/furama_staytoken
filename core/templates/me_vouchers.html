@@ -8,13 +8,15 @@
     <div class="space-y-2">
       <ul class="space-y-2">
         {% for b in balances %}
-        <li class="flex items-center justify-between rounded-xl border p-3 cursor-pointer hover:bg-gray-50" onclick="openVoucherModal('{{ b.slug }}', '{{ b.name }}', '{{ wallet.address_hex }}', '{{ b.qr_claim_code|default:"" }}')">
-          <div>
-            <div class="text-sm font-medium">{{ b.name }}</div>
-            <div class="text-xs text-gray-500">{{ b.slug }}</div>
-          </div>
-          <div class="text-lg font-semibold">{{ b.balance }}</div>
-        </li>
+          {% if b.balance > 0 %}
+          <li class="flex items-center justify-between rounded-xl border p-3 cursor-pointer hover:bg-gray-50" onclick="openVoucherModal('{{ b.slug }}', '{{ b.name }}', '{{ wallet.address_hex }}', '{{ b.qr_claim_code|default:"" }}')">
+            <div>
+              <div class="text-sm font-medium">{{ b.name }}</div>
+              <div class="text-xs text-gray-500">{{ b.slug }}</div>
+            </div>
+            <div class="text-lg font-semibold">{{ b.balance }}</div>
+          </li>
+          {% endif %}
         {% endfor %}
       </ul>
     </div>

@@ -143,11 +143,11 @@ def get_or_create_external_wallet(user: AppUser, chain_id: int, address_hex: str
     address_bytes = bytes.fromhex(normalized)
     wallet = Wallet.objects.filter(chain_id=chain_id, address=address_bytes).first()
     if wallet:
-        owner_id = getattr(wallet, "user_id", None)
-        if owner_id and str(owner_id) != str(user.id):
-            raise PermissionError("Address already registered to another user")
+        # For transfers, we allow sending to any external wallet
+        # The wallet might belong to another user, which is fine for transfers
         return wallet
 
+    # Create new external wallet for this address
     provider_ref = f"external:{normalized}"[:128]
     new_id = uuid.uuid4()
     with connection.cursor() as cur:
@@ -234,6 +234,87 @@ def debit_voucher(
         transfer_id = uuid.uuid4()
         # Note: Transfer logging removed - using QRClaim for tracking instead
     return transfer_id
+
+
+@transaction.atomic
+def transfer_voucher_ownership(
+    from_wallet: Wallet,
+    to_wallet: Wallet,
+    voucher: VoucherType,
+    amount: int,
+) -> None:
+    """Transfer voucher ownership from one wallet to another (database only)"""
+    if amount <= 0:
+        raise ValueError("Amount must be positive")
+
+    with connection.cursor() as cur:
+        # Check sender has enough balance
+        cur.execute(
+            """
+            SELECT balance FROM voucher_balance
+            WHERE wallet_id=%s AND voucher_type_id=%s
+            FOR UPDATE
+            """,
+            [str(from_wallet.id), str(voucher.id)],
+        )
+        row = cur.fetchone()
+        if not row or row[0] < amount:
+            raise ValueError("Insufficient balance")
+
+        # Debit from sender
+        cur.execute(
+            """
+            UPDATE voucher_balance
+            SET balance = balance - %s, updated_at = NOW()
+            WHERE wallet_id = %s AND voucher_type_id = %s
+            """,
+            [amount, str(from_wallet.id), str(voucher.id)],
+        )
+
+        # Credit to receiver (create or update balance)
+        cur.execute(
+            """
+            INSERT INTO voucher_balance (wallet_id, voucher_type_id, balance, updated_at)
+            VALUES (%s, %s, %s, NOW())
+            ON CONFLICT (wallet_id, voucher_type_id)
+            DO UPDATE SET balance = voucher_balance.balance + %s, updated_at = NOW()
+            """,
+            [str(to_wallet.id), str(voucher.id), amount, amount],
+        )
+
+
+def create_qr_claim_for_user(user: AppUser, voucher_type: VoucherType) -> 'QRClaim':
+    """Create a new QRClaim for a user and voucher type (same format as mint)"""
+    from .models import QRClaim
+    from django.utils import timezone
+    import hashlib
+    
+    # Generate unique code using same format as mint process
+    timestamp = int(timezone.now().timestamp())
+    hash_input = f"{user.id}_{timestamp}_{voucher_type.slug}"
+    hash_short = hashlib.md5(hash_input.encode()).hexdigest()[:8]
+    
+    # Format: slug_8char_hash (same as mint)
+    code = f"{voucher_type.slug}_{hash_short}"
+    
+    # Ensure code is unique
+    while QRClaim.objects.filter(code=code).exists():
+        timestamp = int(timezone.now().timestamp())
+        hash_input = f"{user.id}_{timestamp}_{voucher_type.slug}"
+        hash_short = hashlib.md5(hash_input.encode()).hexdigest()[:8]
+        code = f"{voucher_type.slug}_{hash_short}"
+    
+    # Create QRClaim with same fields as mint
+    qr_claim = QRClaim.objects.create(
+        code=code,
+        voucher_type=voucher_type,
+        used_by_user=user,
+        used_at=None,
+        status="new",
+        created_at=timezone.now()
+    )
+    
+    return qr_claim
 
 
 def enqueue_onchain(kind: str, voucher: VoucherType, to_wallet: Wallet, amount: int = 1) -> OnchainTx:

@@ -15,6 +15,7 @@ urlpatterns = [
   path("adv1/admin/vouchers/<str:slug>/delete", views_admin.admin_voucher_delete, name="admin_voucher_delete"),
   path("adv1/admin/vouchers/<str:slug>/codes", views_admin.admin_voucher_codes, name="admin_voucher_codes"),
   path("adv1/admin/vouchers/<str:slug>/generate-codes", views_admin.admin_voucher_generate_codes, name="admin_voucher_generate_codes"),
+  path("adv1/admin/vouchers/<str:slug>/generate-qr", views_admin.admin_voucher_generate_qr, name="admin_voucher_generate_qr"),
   path("adv1/admin/vouchers/<str:slug>/expire-code", views_admin.admin_voucher_expire_code, name="admin_voucher_expire_code"),
   path("adv1/admin/vouchers/<str:slug>/export-codes", views_admin.admin_voucher_export_codes, name="admin_voucher_export_codes"),
   path("adv1/admin/vouchers/export-qr-pdf", views_admin.admin_voucher_export_qr_pdf, name="admin_voucher_export_qr_pdf"),
@@ -47,6 +48,7 @@ urlpatterns = [
   path("me", views_me.me, name="me"),
   path("my-wallet", views_me.my_wallet, name="my_wallet"),
   path("my-vouchers", views_me.my_vouchers, name="my_vouchers"),
+  path("my-vouchers.json", views_me.my_vouchers_json, name="my_vouchers_json"),
 
   path("", views_home.home, name="home"),
   path("qr-scanner", views_home.qr_scanner, name="qr_scanner"),
