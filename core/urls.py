@@ -66,5 +66,6 @@ urlpatterns = [
   path('pos/api/commit', views_pos.api_commit, name='pos_commit_api'),
   path("qr/wallet/<str:addr>.png", views_qr.wallet_qr_png, name="qr_wallet_png"),
   path("qr/voucher/<str:slug>/<str:addr>.png", views_qr.voucher_qr_png, name="qr_voucher_png"),
-  path("qr/claim/<str:code>.png", views_qr.qr_claim_png, name="qr_claim_png")
+  path("qr/claim/<str:code>.png", views_qr.qr_claim_png, name="qr_claim_png"),
+  path("qr/admin/voucher/<str:slug>.png", views_qr.voucher_qr_png_admin, name="qr_admin_voucher_png")
 ]

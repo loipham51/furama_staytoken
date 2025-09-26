@@ -38,3 +38,11 @@ def qr_claim_png(request, code: str):
     data = code  # QRClaim code is the data itself
     path = Path(get_or_make_cached_png(f"qr_claim_{code}.png", data))
     return FileResponse(path.open("rb"), content_type="image/png")
+
+# QR cho voucher (admin export)
+def voucher_qr_png_admin(request, slug: str):
+    if not re.fullmatch(r"[A-Za-z0-9_-]+", slug or ""):
+        raise Http404("Invalid voucher slug")
+    data = f"voucher:{slug}:claim"
+    path = Path(get_or_make_cached_png(f"voucher_{slug}.png", data))
+    return FileResponse(path.open("rb"), content_type="image/png")
