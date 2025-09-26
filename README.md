@@ -59,36 +59,6 @@ Furama StayToken revolutionizes the traditional paper voucher system by leveragi
 
 ---
 
-## 🏗️ **System Architecture**
-
-```mermaid
-graph TB
-    A[Guest Mobile App] --> B[Web Interface]
-    B --> C[Django Backend]
-    C --> D[PostgreSQL Database]
-    C --> E[Blockchain Network]
-    C --> F[QR Code Generator]
-    
-    G[POS Terminal] --> H[Admin Dashboard]
-    H --> C
-    
-    I[Hotel Staff] --> H
-    
-    subgraph "Blockchain Layer"
-        E --> J[ERC-1155 Contract]
-        J --> K[Token Minting]
-        J --> L[Token Transfer]
-    end
-    
-    subgraph "Storage Layer"
-        D --> M[User Data]
-        D --> N[Voucher Records]
-        D --> O[Transaction Logs]
-    end
-```
-
----
-
 ## 🚀 **Quick Start**
 
 ### **Prerequisites**
@@ -197,17 +167,6 @@ graph TB
 - **QRClaim**: Unique claim codes for vouchers
 - **OnchainTx**: Blockchain transaction records
 
-### **Key Relationships**
-```mermaid
-erDiagram
-    AppUser ||--o{ Wallet : owns
-    Wallet ||--o{ VoucherBalance : contains
-    VoucherType ||--o{ VoucherBalance : defines
-    AppUser ||--o{ QRClaim : claims
-    VoucherType ||--o{ QRClaim : generates
-    Wallet ||--o{ OnchainTx : participates
-```
-
 ---
 
 ## 🛡️ **Security Features**
@@ -274,48 +233,6 @@ docker-compose up -d --scale web=3
 
 ---
 
-## 🤝 **Contributing**
-
-We welcome contributions! Please see our [Contributing Guidelines](CONTRIBUTING.md) for details.
-
-### **Development Setup**
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Add tests for new functionality
-5. Submit a pull request
-
-### **Code Standards**
-- **Python**: PEP 8 style guide
-- **JavaScript**: ESLint configuration
-- **Documentation**: Comprehensive docstrings
-- **Testing**: Unit and integration tests
-
----
-
-## 📄 **License**
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
----
-
-## 🆘 **Support & Contact**
-
-- **Documentation**: [docs.furama-staytoken.com](https://docs.furama-staytoken.com)
-- **Issues**: [GitHub Issues](https://github.com/furama-resort/staytoken/issues)
-- **Email**: support@furama-staytoken.com
-- **Discord**: [Community Server](https://discord.gg/furama-staytoken)
-
----
-
-## 🙏 **Acknowledgments**
-
-- **Ethereum Foundation**: For blockchain infrastructure
-- **Django Community**: For the excellent web framework
-- **Open Source Contributors**: For the amazing tools and libraries
-- **Furama Resort Team**: For vision and support
-
----
 
 <div align="center">
 

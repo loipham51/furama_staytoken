@@ -1149,14 +1149,22 @@ def admin_voucher_generate_qr(request, slug: str):
         qr_filename = f"voucher_{slug}.png"
         qr_path = get_or_make_cached_png(qr_filename, qr_data)
         
-        # Return URL to the generated QR code
-        qr_url = f"/qr_cache/{qr_filename}"
+        # Check if file exists
+        file_exists = os.path.exists(qr_path)
+        print(f"DEBUG: QR file exists: {file_exists}")
+        print(f"DEBUG: QR path: {qr_path}")
+        print(f"DEBUG: QR filename: {qr_filename}")
+        
+        # Return URL to the generated QR code via Django view
+        from django.urls import reverse
+        qr_url = f"/qr/admin/voucher/{slug}.png"
         
         return JsonResponse({
             "success": True,
             "message": f"QR code generated for {voucher.name}",
             "qr_url": qr_url,
-            "qr_path": qr_path
+            "qr_path": str(qr_path),
+            "file_exists": file_exists
         })
         
     except Exception as e:

@@ -179,20 +179,25 @@ function generateQRCode(slug, name) {
   })
   .then(response => response.json())
   .then(data => {
+    console.log('DEBUG: API Response:', data);
     if (data.success) {
       // Load the generated QR image
+      console.log('DEBUG: Loading QR image from:', data.qr_url);
       qrImage.src = data.qr_url;
       qrImage.onload = function() {
+        console.log('DEBUG: QR image loaded successfully');
         // Hide loading and show QR image
         loading.style.display = 'none';
         qrImage.style.display = 'block';
         currentQRImage = data.qr_url;
       };
       qrImage.onerror = function() {
+        console.log('DEBUG: QR image failed to load');
         // Show error if image fails to load
         loading.innerHTML = '<div class="text-red-500 text-sm">Error loading QR code</div>';
       };
     } else {
+      console.log('DEBUG: API returned error:', data.message);
       // Show error message
       loading.innerHTML = '<div class="text-red-500 text-sm">' + (data.message || 'Error generating QR code') + '</div>';
     }
