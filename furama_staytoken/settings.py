@@ -60,6 +60,26 @@ def require_env(key: str, *, allow_placeholder: bool = False) -> str:
         return value
     raise ImproperlyConfigured(f"Environment variable {key} is required")
 
+
+def require_env_with_dev_default(key: str, *, dev_default: str | None = None, allow_placeholder: bool = False) -> str:
+    """
+    Wrapper around require_env that optionally supplies a development fallback.
+
+    In DEBUG mode, if the variable is missing and a dev_default is provided,
+    emit a warning and return that value so the server can still boot locally.
+    """
+    try:
+        return require_env(key, allow_placeholder=allow_placeholder)
+    except ImproperlyConfigured:
+        if dev_default is not None and os.getenv("DJANGO_DEBUG", "1") not in {"0", "false", "no", "off"}:
+            warnings.warn(
+                f"{key} not set; using development fallback value. "
+                "Set the proper environment variable before deploying.",
+                RuntimeWarning,
+            )
+            return dev_default
+        raise
+
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = env_bool("DJANGO_DEBUG", default=True)
 
@@ -142,11 +162,11 @@ WSGI_APPLICATION = 'furama_staytoken.wsgi.application'
 DATABASES = {
     "default": {
         "ENGINE": "django.db.backends.postgresql",
-        "NAME": os.getenv("DB_NAME", "staytoken"),
+        "NAME": os.getenv("DB_NAME", "furama_staytoken"),
         "USER": os.getenv("DB_USER", "postgres"),
-        "PASSWORD": os.getenv("DB_PASSWORD", "admin"),
-        "HOST": os.getenv("DB_HOST", "127.0.0.1"),
-        "PORT": os.getenv("DB_PORT", "5432"),
+        "PASSWORD": os.getenv("DB_PASSWORD", "Satthuskt321@"),
+        "HOST": os.getenv("DB_HOST", "27.71.229.4"),
+        "PORT": os.getenv("DB_PORT", "6243"),
         "CONN_MAX_AGE": int(os.getenv("DB_CONN_MAX_AGE", "60")),
     }
 }
@@ -213,9 +233,9 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 # --------- App configs ----------
 ST_PROVIDER = os.getenv("ST_PROVIDER", "privy")
 ST_CHAIN_ID = int(os.getenv("ST_CHAIN_ID", os.getenv("CHAIN_ID", "8453")))
-ST_RPC_URL = require_env("ST_RPC_URL")
-ST_ERC1155_SIGNER = require_env("ST_ERC1155_SIGNER")
-ST_DEFAULT_CONTRACT = require_env("ST_DEFAULT_CONTRACT")
+ST_RPC_URL = require_env_with_dev_default("ST_RPC_URL", dev_default="http://localhost:8545")
+ST_ERC1155_SIGNER = require_env_with_dev_default("ST_ERC1155_SIGNER", dev_default="0x" + "0" * 64)
+ST_DEFAULT_CONTRACT = require_env_with_dev_default("ST_DEFAULT_CONTRACT", dev_default="0x" + "0" * 40)
 ST_RATE_LIMIT_PER_10M = int(os.getenv("ST_RATE_LIMIT_PER_10M", "3"))
 ST_OTP_LIMIT_PER_EMAIL = int(os.getenv("ST_OTP_LIMIT_PER_EMAIL", "5"))
 ST_OTP_LIMIT_PER_IP = int(os.getenv("ST_OTP_LIMIT_PER_IP", "20"))
